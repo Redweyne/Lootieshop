@@ -21,6 +21,152 @@ const engine = new Liquid({
   strictVariables: false
 });
 
+// Register Shopify-specific tags
+engine.registerTag('style', {
+  parse: function(tagToken, remainTokens) {
+    this.tokens = [];
+    const stream = this.liquid.parser.parseStream(remainTokens);
+    stream
+      .on('tag:endstyle', () => stream.stop())
+      .on('template', tpl => this.tokens.push(tpl))
+      .on('end', () => {
+        throw new Error('tag "endstyle" not found');
+      });
+    stream.start();
+  },
+  render: async function(ctx) {
+    const html = await this.liquid.renderer.renderTemplates(this.tokens, ctx);
+    return `<style>${html}</style>`;
+  }
+});
+
+engine.registerTag('schema', {
+  parse: function(tagToken, remainTokens) {
+    this.tokens = [];
+    const stream = this.liquid.parser.parseStream(remainTokens);
+    stream
+      .on('tag:endschema', () => stream.stop())
+      .on('template', tpl => this.tokens.push(tpl))
+      .on('end', () => {
+        throw new Error('tag "endschema" not found');
+      });
+    stream.start();
+  },
+  render: function() {
+    return ''; // Schema is for the Shopify admin, not rendered on frontend
+  }
+});
+
+engine.registerTag('javascript', {
+  parse: function(tagToken, remainTokens) {
+    this.tokens = [];
+    const stream = this.liquid.parser.parseStream(remainTokens);
+    stream
+      .on('tag:endjavascript', () => stream.stop())
+      .on('template', tpl => this.tokens.push(tpl))
+      .on('end', () => {
+        throw new Error('tag "endjavascript" not found');
+      });
+    stream.start();
+  },
+  render: async function(ctx) {
+    const html = await this.liquid.renderer.renderTemplates(this.tokens, ctx);
+    return `<script>${html}</script>`;
+  }
+});
+
+engine.registerTag('sections', {
+  parse: function(tagToken) {
+    this.group = tagToken.args.trim().replace(/['"]/g, '');
+  },
+  render: async function(ctx) {
+    // Render section group (header-group, footer-group)
+    const groupFile = `${this.group}.json`;
+    const groupPath = path.join(__dirname, 'sections', groupFile);
+    
+    if (fs.existsSync(groupPath)) {
+      try {
+        const groupData = JSON.parse(fs.readFileSync(groupPath, 'utf8'));
+        let html = '';
+        
+        for (const [sectionKey, sectionConfig] of Object.entries(groupData.sections || {})) {
+          if (sectionConfig.type) {
+            const sectionFile = `${sectionConfig.type}.liquid`;
+            const sectionData = {
+              ...ctx.getAll(),
+              section: {
+                id: sectionKey,
+                settings: sectionConfig.settings || {}
+              }
+            };
+            
+            try {
+              const rendered = await this.liquid.renderFile(sectionFile, sectionData);
+              html += rendered;
+            } catch (err) {
+              console.error(`Error rendering section ${sectionFile}:`, err.message);
+            }
+          }
+        }
+        
+        return html;
+      } catch (err) {
+        console.error(`Error loading section group ${groupFile}:`, err.message);
+        return '';
+      }
+    }
+    
+    return '';
+  }
+});
+
+engine.registerTag('form', {
+  parse: function(tagToken, remainTokens) {
+    this.formType = tagToken.args.split(',')[0].trim().replace(/['"]/g, '');
+    this.tokens = [];
+    const stream = this.liquid.parser.parseStream(remainTokens);
+    stream
+      .on('tag:endform', () => stream.stop())
+      .on('template', tpl => this.tokens.push(tpl))
+      .on('end', () => {
+        throw new Error('tag "endform" not found');
+      });
+    stream.start();
+  },
+  render: async function(ctx) {
+    const content = await this.liquid.renderer.renderTemplates(this.tokens, ctx);
+    return `<form class="shopify-${this.formType}-form" method="post">${content}</form>`;
+  }
+});
+
+engine.registerTag('paginate', {
+  parse: function(tagToken, remainTokens) {
+    this.tokens = [];
+    const stream = this.liquid.parser.parseStream(remainTokens);
+    stream
+      .on('tag:endpaginate', () => stream.stop())
+      .on('template', tpl => this.tokens.push(tpl))
+      .on('end', () => {
+        throw new Error('tag "endpaginate" not found');
+      });
+    stream.start();
+  },
+  render: async function(ctx) {
+    // Simple pagination mock - just render the content
+    const paginate = {
+      current_page: 1,
+      pages: 1,
+      items: 12,
+      page_size: 12,
+      previous: null,
+      next: null
+    };
+    ctx.environments.paginate = paginate;
+    const html = await this.liquid.renderer.renderTemplates(this.tokens, ctx);
+    return html;
+  }
+});
+
 // Register custom Liquid filters
 engine.registerFilter('asset_url', (input) => `/assets/${input}`);
 engine.registerFilter('img_url', (input, size) => input);
@@ -63,6 +209,68 @@ engine.registerFilter('truncate', (input, length = 50) => {
 });
 engine.registerFilter('url_encode', (input) => {
   return encodeURIComponent(input);
+});
+engine.registerFilter('font_face', (input, options) => {
+  // Mock font face generation - return empty string as fonts are loaded via CSS
+  return '';
+});
+engine.registerFilter('font_modify', (input, property, value) => {
+  // Mock font modification - just return the input
+  return input || `font-family: sans-serif`;
+});
+engine.registerFilter('color_brightness', (color) => {
+  // Mock color brightness calculation
+  return 128; // Mid brightness
+});
+engine.registerFilter('color_lighten', (color, amount) => {
+  // Mock color lightening
+  return color;
+});
+engine.registerFilter('color_darken', (color, amount) => {
+  // Mock color darkening
+  return color;
+});
+engine.registerFilter('join', (array, separator = ', ') => {
+  if (Array.isArray(array)) {
+    return array.join(separator);
+  }
+  return array;
+});
+engine.registerFilter('first', (array) => {
+  if (Array.isArray(array) && array.length > 0) {
+    return array[0];
+  }
+  return array;
+});
+engine.registerFilter('last', (array) => {
+  if (Array.isArray(array) && array.length > 0) {
+    return array[array.length - 1];
+  }
+  return array;
+});
+engine.registerFilter('size', (input) => {
+  if (Array.isArray(input)) return input.length;
+  if (typeof input === 'string') return input.length;
+  if (typeof input === 'object') return Object.keys(input).length;
+  return 0;
+});
+engine.registerFilter('append', (input, string) => {
+  return String(input || '') + String(string || '');
+});
+engine.registerFilter('prepend', (input, string) => {
+  return String(string || '') + String(input || '');
+});
+engine.registerFilter('replace', (input, find, replace) => {
+  if (typeof input === 'string') {
+    return input.split(find).join(replace);
+  }
+  return input;
+});
+engine.registerFilter('split', (input, separator) => {
+  if (typeof input === 'string') {
+    return input.split(separator);
+  }
+  return [input];
 });
 
 // Serve static assets
