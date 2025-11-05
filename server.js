@@ -92,11 +92,30 @@ engine.registerTag('sections', {
         for (const [sectionKey, sectionConfig] of Object.entries(groupData.sections || {})) {
           if (sectionConfig.type) {
             const sectionFile = `${sectionConfig.type}.liquid`;
+            
+            // Build blocks data as ordered array matching Shopify's structure
+            const blocks = [];
+            const blockOrder = sectionConfig.block_order || Object.keys(sectionConfig.blocks || {});
+            
+            if (sectionConfig.blocks) {
+              for (const blockId of blockOrder) {
+                const blockConfig = sectionConfig.blocks[blockId];
+                if (blockConfig) {
+                  blocks.push({
+                    id: blockId,
+                    type: blockConfig.type,
+                    settings: blockConfig.settings || {}
+                  });
+                }
+              }
+            }
+            
             const sectionData = {
               ...ctx.getAll(),
               section: {
                 id: sectionKey,
-                settings: sectionConfig.settings || {}
+                settings: sectionConfig.settings || {},
+                blocks: blocks
               }
             };
             
@@ -308,11 +327,29 @@ async function renderPage(template, data = {}) {
             
             if (fs.existsSync(sectionPath)) {
               try {
+                // Build blocks data as ordered array matching Shopify's structure
+                const blocks = [];
+                const blockOrder = sectionConfig.block_order || Object.keys(sectionConfig.blocks || {});
+                
+                if (sectionConfig.blocks) {
+                  for (const blockId of blockOrder) {
+                    const blockConfig = sectionConfig.blocks[blockId];
+                    if (blockConfig) {
+                      blocks.push({
+                        id: blockId,
+                        type: blockConfig.type,
+                        settings: blockConfig.settings || {}
+                      });
+                    }
+                  }
+                }
+                
                 const sectionData = {
                   ...fullData,
                   section: {
                     id: sectionKey,
-                    settings: sectionConfig.settings || {}
+                    settings: sectionConfig.settings || {},
+                    blocks: blocks
                   }
                 };
                 
