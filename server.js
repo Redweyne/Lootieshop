@@ -248,8 +248,56 @@ function registerShopifyTags(engine) {
 
   // Register custom Liquid filters
   engine.registerFilter('asset_url', (input) => `/theme-assets/${input}`);
-  engine.registerFilter('img_url', (input, size) => input);
-  engine.registerFilter('image_url', (input, size) => input);
+  engine.registerFilter('stylesheet_tag', (input, options) => {
+    if (typeof input === 'string' && input.startsWith('/theme-assets/')) {
+      const preload = options && options.preload ? ' rel="preload" as="style"' : '';
+      return `<link rel="stylesheet" href="${input}"${preload}>`;
+    }
+    return `<link rel="stylesheet" href="${input}">`;
+  });
+  engine.registerFilter('script_tag', (input) => {
+    return `<script src="${input}" defer="defer"></script>`;
+  });
+  engine.registerFilter('font_url', (input) => {
+    return '';
+  });
+  engine.registerFilter('img_url', (input, size) => {
+    if (typeof input === 'string') {
+      return input;
+    }
+    if (input && input.src) {
+      return input.src;
+    }
+    return input;
+  });
+  engine.registerFilter('image_url', (input, options) => {
+    // Simple gray placeholder as data URI
+    const placeholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwMCIgaGVpZ2h0PSI4MDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEyMDAiIGhlaWdodD0iODAwIiBmaWxsPSIjZTBlMGUwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIFBsYWNlaG9sZGVyPC90ZXh0Pjwvc3ZnPg==';
+    
+    if (typeof input === 'string') {
+      // Handle shopify:// URLs by converting to placeholder
+      if (input.startsWith('shopify://')) {
+        return placeholder;
+      }
+      return input;
+    }
+    if (input && input.src) {
+      return input.src;
+    }
+    return placeholder;
+  });
+  engine.registerFilter('image_tag', (input, options) => {
+    const placeholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwMCIgaGVpZ2h0PSI4MDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEyMDAiIGhlaWdodD0iODAwIiBmaWxsPSIjZTBlMGUwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIFBsYWNlaG9sZGVyPC90ZXh0Pjwvc3ZnPg==';
+    const src = input || placeholder;
+    const width = options && options.width ? `width="${options.width}"` : '';
+    const height = options && options.height ? `height="${options.height}"` : '';
+    const className = options && options.class ? `class="${options.class}"` : '';
+    const alt = options && options.alt ? options.alt : 'Image';
+    return `<img src="${src}" alt="${alt}" ${width} ${height} ${className} loading="lazy">`;
+  });
+  engine.registerFilter('placeholder_svg_tag', (input, className) => {
+    return `<svg class="${className || ''}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 525 525"><path fill="#999" d="M324.5 212.7H203.7l120.8-120.8 37.5-37.5c-11.4-6.4-24.2-10.8-37.5-13.1L204.7 161.2 84.9 41.3 64 62.2l120.8 120.8L64 303.8l19.2 19.2L204 202.2 324.8 323l19.2-19.2L223.2 183l120.8-120.8c-6.4-11.4-13.9-21.6-21.5-30.2L202.7 152.8l120.8 120.8c-.1.1-.1.1 0 0z"/></svg>`;
+  });
   engine.registerFilter('money', (cents) => {
     if (typeof cents === 'number') {
       return `$${(cents / 100).toFixed(2)}`;
@@ -346,6 +394,23 @@ function registerShopifyTags(engine) {
     }
     return [input];
   });
+  engine.registerFilter('t', (input) => {
+    // Simple translation filter - returns the key as-is for now
+    // In a real implementation, this would look up translations from locale files
+    const translations = {
+      'accessibility.skip_to_text': 'Skip to content',
+      'accessibility.refresh_page': 'Refresh page',
+      'accessibility.link_messages.new_window': 'Opens in a new window',
+      'products.product.add_to_cart': 'Add to cart',
+      'products.product.sold_out': 'Sold out',
+      'products.product.unavailable': 'Unavailable',
+      'sections.cart.cart_error': 'Cart error',
+      'sections.quick_order_list.items_added.other': '[quantity] items added',
+      'sections.quick_order_list.items_added.one': '[quantity] item added',
+      'general.share.success_message': 'Link copied to clipboard'
+    };
+    return translations[input] || input.split('.').pop();
+  });
 
   return engine;
 }
@@ -353,13 +418,56 @@ function registerShopifyTags(engine) {
 // Serve static theme assets
 app.use('/theme-assets', express.static(path.join(THEME_DIR, 'assets')));
 
+// Load theme settings from settings_data.json
+function loadThemeSettings() {
+  const settingsPath = path.join(THEME_DIR, 'config', 'settings_data.json');
+  if (fs.existsSync(settingsPath)) {
+    try {
+      const settingsData = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+      return settingsData.current || {};
+    } catch (err) {
+      console.error('Error loading theme settings:', err.message);
+    }
+  }
+  return {};
+}
+
+// Create font objects that mimic Shopify's font object structure
+function createFontObject(fontName) {
+  const fontParts = (fontName || 'sans-serif').split('_');
+  const family = fontParts[0].replace(/-/g, ' ');
+  return {
+    family: family,
+    fallback_families: 'sans-serif',
+    style: 'normal',
+    weight: 400,
+    system: false
+  };
+}
+
 // Helper to render a page with theme layout
 async function renderPage(template, data = {}) {
   try {
     const engine = registerShopifyTags(getLiquidEngine());
     
+    // Load theme settings from settings_data.json
+    const themeSettings = loadThemeSettings();
+    
+    // Create font objects for the theme
+    const type_body_font = createFontObject(themeSettings.type_body_font);
+    const type_header_font = createFontObject(themeSettings.type_header_font);
+    
+    // Merge theme settings with mock settings
+    const mergedSettings = {
+      ...mockData.settings,
+      ...themeSettings,
+      type_body_font,
+      type_header_font
+    };
+    
     const fullData = {
       ...mockData,
+      settings: mergedSettings,
       ...data,
       content_for_header: '',
       canonical_url: mockData.shop.url + (data.request?.path || '/')
@@ -409,11 +517,23 @@ async function renderPage(template, data = {}) {
                   }
                 }
                 
+                // Handle product references in section settings
+                const sectionSettings = { ...(sectionConfig.settings || {}) };
+                if (sectionSettings.product && typeof sectionSettings.product === 'string') {
+                  // Try to find the product by handle
+                  const product = fullData.products.find(p => p.handle === sectionSettings.product);
+                  // If not found, use the first product as fallback
+                  sectionSettings.product = product || fullData.products[0];
+                }
+                if (sectionSettings.collection && typeof sectionSettings.collection === 'string') {
+                  sectionSettings.collection = fullData.collections[sectionSettings.collection] || fullData.collections.all;
+                }
+                
                 const sectionData = {
                   ...fullData,
                   section: {
                     id: sectionKey,
-                    settings: sectionConfig.settings || {},
+                    settings: sectionSettings,
                     blocks: blocks
                   }
                 };
