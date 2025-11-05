@@ -249,16 +249,21 @@ function registerShopifyTags(engine) {
   // Register custom Liquid filters
   engine.registerFilter('asset_url', (input) => `/theme-assets/${input}`);
   engine.registerFilter('stylesheet_tag', (input, options) => {
-    if (typeof input === 'string' && input.startsWith('/theme-assets/')) {
-      const preload = options && options.preload ? ' rel="preload" as="style"' : '';
-      return `<link rel="stylesheet" href="${input}"${preload}>`;
-    }
-    return `<link rel="stylesheet" href="${input}">`;
+    if (!input) return '';
+    const href = typeof input === 'string' && !input.startsWith('http') && !input.startsWith('/theme-assets/') 
+      ? `/theme-assets/${input}` 
+      : input;
+    const preload = options && options.preload ? ' rel="preload" as="style"' : '';
+    return `<link rel="stylesheet" href="${href}"${preload}>`;
   });
   engine.registerFilter('script_tag', (input) => {
     return `<script src="${input}" defer="defer"></script>`;
   });
   engine.registerFilter('font_url', (input) => {
+    if (!input) return '';
+    if (typeof input === 'object' && input.family) {
+      return '';
+    }
     return '';
   });
   engine.registerFilter('img_url', (input, size) => {
@@ -441,7 +446,8 @@ function createFontObject(fontName) {
     fallback_families: 'sans-serif',
     style: 'normal',
     weight: 400,
-    system: false
+    system: true,
+    'system?': true
   };
 }
 

@@ -3,5 +3,4 @@ npm-debug.log
 .DS_Store
 *.log
 .env
-.replit
-replit.nix
+current-theme/
