@@ -1,209 +1,294 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const { Liquid } = require('liquidjs');
+const mockData = require('./mock-data');
 
 const app = express();
 const PORT = 5000;
 
+// Initialize Liquid engine
+const engine = new Liquid({
+  root: [
+    path.join(__dirname, 'layout'),
+    path.join(__dirname, 'sections'),
+    path.join(__dirname, 'snippets'),
+    path.join(__dirname, 'templates')
+  ],
+  extname: '.liquid',
+  cache: false,
+  strictFilters: false,
+  strictVariables: false
+});
+
+// Register custom Liquid filters
+engine.registerFilter('asset_url', (input) => `/assets/${input}`);
+engine.registerFilter('img_url', (input, size) => input);
+engine.registerFilter('image_url', (input, size) => input);
+engine.registerFilter('money', (cents) => {
+  if (typeof cents === 'number') {
+    return `$${(cents / 100).toFixed(2)}`;
+  }
+  return cents;
+});
+engine.registerFilter('money_with_currency', (cents) => {
+  if (typeof cents === 'number') {
+    return `$${(cents / 100).toFixed(2)} USD`;
+  }
+  return cents;
+});
+engine.registerFilter('default', (input, defaultValue) => {
+  return input || defaultValue;
+});
+engine.registerFilter('escape', (input) => {
+  if (typeof input === 'string') {
+    return input.replace(/[&<>"']/g, (char) => {
+      const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+      return entities[char];
+    });
+  }
+  return input;
+});
+engine.registerFilter('strip_html', (input) => {
+  if (typeof input === 'string') {
+    return input.replace(/<[^>]*>/g, '');
+  }
+  return input;
+});
+engine.registerFilter('truncate', (input, length = 50) => {
+  if (typeof input === 'string' && input.length > length) {
+    return input.substring(0, length) + '...';
+  }
+  return input;
+});
+engine.registerFilter('url_encode', (input) => {
+  return encodeURIComponent(input);
+});
+
 // Serve static assets
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
-// Create a simple index page explaining this is a Shopify theme
-app.get('/', (req, res) => {
+// Helper to render a page with theme layout
+async function renderPage(template, data = {}) {
+  try {
+    // Merge mock data with page-specific data
+    const fullData = {
+      ...mockData,
+      ...data,
+      content_for_header: '', // Shopify injects scripts here
+      canonical_url: mockData.shop.url + (data.request?.path || '/')
+    };
+
+    // Read the theme layout
+    const themeLayout = fs.readFileSync(path.join(__dirname, 'layout', 'theme.liquid'), 'utf8');
+    
+    // Render the page template
+    let pageContent = '';
+    if (template && fs.existsSync(path.join(__dirname, 'templates', template))) {
+      const templateContent = fs.readFileSync(path.join(__dirname, 'templates', template), 'utf8');
+      
+      // Check if it's a JSON template (section-based)
+      if (template.endsWith('.json')) {
+        const templateData = JSON.parse(templateContent);
+        pageContent = '';
+        
+        // Render each section
+        for (const [sectionKey, sectionConfig] of Object.entries(templateData.sections || {})) {
+          if (sectionConfig.type) {
+            const sectionFile = `${sectionConfig.type}.liquid`;
+            const sectionPath = path.join(__dirname, 'sections', sectionFile);
+            
+            if (fs.existsSync(sectionPath)) {
+              try {
+                const sectionData = {
+                  ...fullData,
+                  section: {
+                    id: sectionKey,
+                    settings: sectionConfig.settings || {}
+                  }
+                };
+                
+                const rendered = await engine.renderFile(sectionFile, sectionData);
+                pageContent += rendered;
+              } catch (err) {
+                console.error(`Error rendering section ${sectionFile}:`, err.message);
+                pageContent += `<!-- Error rendering section: ${sectionFile} -->`;
+              }
+            }
+          }
+        }
+      } else {
+        // Render liquid template
+        pageContent = await engine.parseAndRender(templateContent, fullData);
+      }
+    }
+    
+    // Insert page content into layout
+    fullData.content_for_layout = pageContent;
+    
+    // Render the full theme
+    const html = await engine.parseAndRender(themeLayout, fullData);
+    return html;
+  } catch (error) {
+    console.error('Render error:', error);
+    throw error;
+  }
+}
+
+// Homepage
+app.get('/', async (req, res) => {
+  try {
+    const html = await renderPage('index.json', {
+      request: { ...mockData.request, page_type: 'index', path: '/' }
+    });
+    res.send(html);
+  } catch (error) {
+    res.status(500).send(`
+      <h1>Rendering Error</h1>
+      <p>There was an error rendering the homepage.</p>
+      <pre>${error.message}</pre>
+      <p><a href="/info">View Information Page</a></p>
+    `);
+  }
+});
+
+// Product page
+app.get('/products/:handle', async (req, res) => {
+  try {
+    const product = mockData.getProductByHandle(req.params.handle);
+    if (!product) {
+      return res.status(404).send('<h1>Product Not Found</h1>');
+    }
+
+    const html = await renderPage('product.json', {
+      product,
+      request: { ...mockData.request, page_type: 'product', path: req.path }
+    });
+    res.send(html);
+  } catch (error) {
+    res.status(500).send(`
+      <h1>Rendering Error</h1>
+      <pre>${error.message}</pre>
+      <p><a href="/info">View Information Page</a></p>
+    `);
+  }
+});
+
+// Collection page
+app.get('/collections/:handle', async (req, res) => {
+  try {
+    const collection = mockData.collections[req.params.handle];
+    if (!collection) {
+      return res.status(404).send('<h1>Collection Not Found</h1>');
+    }
+
+    const html = await renderPage('collection.json', {
+      collection,
+      request: { ...mockData.request, page_type: 'collection', path: req.path }
+    });
+    res.send(html);
+  } catch (error) {
+    res.status(500).send(`
+      <h1>Rendering Error</h1>
+      <pre>${error.message}</pre>
+      <p><a href="/info">View Information Page</a></p>
+    `);
+  }
+});
+
+// Cart page
+app.get('/cart', async (req, res) => {
+  try {
+    const html = await renderPage('cart.json', {
+      request: { ...mockData.request, page_type: 'cart', path: '/cart' }
+    });
+    res.send(html);
+  } catch (error) {
+    res.status(500).send(`
+      <h1>Rendering Error</h1>
+      <pre>${error.message}</pre>
+      <p><a href="/info">View Information Page</a></p>
+    `);
+  }
+});
+
+// Info page (fallback)
+app.get('/info', (req, res) => {
   const htmlContent = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shopify Theme Preview</title>
+    <title>Shopify Theme Preview - Info</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
             padding: 20px;
+            background: #f5f5f5;
         }
-        
         .container {
             background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            max-width: 800px;
-            width: 100%;
             padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        
-        h1 {
-            color: #333;
-            font-size: 2.5rem;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        
-        .shopify-logo {
-            text-align: center;
-            margin-bottom: 30px;
-            font-size: 4rem;
-        }
-        
-        .info-box {
-            background: #f7f7f7;
-            border-left: 4px solid #667eea;
-            padding: 20px;
-            margin: 20px 0;
-            border-radius: 4px;
-        }
-        
-        .info-box h2 {
-            color: #667eea;
-            font-size: 1.3rem;
-            margin-bottom: 10px;
-        }
-        
-        .info-box p {
-            color: #666;
-            line-height: 1.6;
-            margin-bottom: 10px;
-        }
-        
-        .steps {
-            background: #fff;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 25px;
-            margin: 20px 0;
-        }
-        
-        .steps h3 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 1.2rem;
-        }
-        
-        .steps ol {
-            padding-left: 20px;
-        }
-        
-        .steps li {
-            color: #555;
-            margin: 10px 0;
-            line-height: 1.6;
-        }
-        
-        .steps code {
-            background: #f4f4f4;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: 'Courier New', monospace;
-            color: #d63384;
-        }
-        
-        .warning {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 4px;
-        }
-        
-        .warning strong {
-            color: #856404;
-        }
-        
-        .assets-link {
-            text-align: center;
-            margin-top: 30px;
-        }
-        
-        .btn {
-            display: inline-block;
-            background: #667eea;
-            color: white;
-            padding: 12px 30px;
-            text-decoration: none;
-            border-radius: 6px;
-            font-weight: 600;
-            transition: background 0.3s;
-        }
-        
-        .btn:hover {
-            background: #5568d3;
-        }
-        
-        footer {
-            text-align: center;
-            margin-top: 30px;
-            color: #999;
-            font-size: 0.9rem;
-        }
+        h1 { color: #333; margin-top: 0; }
+        h2 { color: #667eea; margin-top: 30px; }
+        .success { background: #d4edda; padding: 15px; border-radius: 5px; border-left: 4px solid #28a745; margin: 20px 0; }
+        .info { background: #d1ecf1; padding: 15px; border-radius: 5px; border-left: 4px solid #17a2b8; margin: 20px 0; }
+        ul { line-height: 1.8; }
+        a { color: #667eea; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .btn { display: inline-block; background: #667eea; color: white; padding: 10px 20px; border-radius: 5px; margin: 10px 5px; text-decoration: none; }
+        .btn:hover { background: #5568d3; text-decoration: none; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="shopify-logo">🛍️</div>
-        <h1>Shopify Theme Repository</h1>
+        <h1>🎉 Shopify Theme Preview</h1>
         
-        <div class="info-box">
-            <h2>What is this?</h2>
-            <p>This is a Shopify theme that contains templates, styles, and scripts designed to run on Shopify's e-commerce platform.</p>
+        <div class="success">
+            <strong>✓ Success!</strong> Your Shopify theme is now rendering with mock data!
         </div>
         
-        <div class="warning">
-            <strong>⚠️ Important:</strong> This theme cannot function as a standalone website. It requires a Shopify store to work properly, as it uses Shopify's Liquid templating engine and relies on Shopify's backend for products, cart, checkout, and other e-commerce features.
+        <div class="info">
+            <strong>ℹ️ Preview Mode:</strong> This server renders your Shopify theme with sample products and data so you can see and modify the design before deploying to Shopify.
         </div>
-        
-        <div class="steps">
-            <h3>🚀 How to Use This Theme</h3>
-            <ol>
-                <li>
-                    <strong>Get a Shopify Store:</strong><br>
-                    Sign up for a free Shopify Partner account at <code>partners.shopify.com</code> and create a development store.
-                </li>
-                <li>
-                    <strong>Install Shopify CLI:</strong><br>
-                    Run: <code>npm install -g @shopify/cli @shopify/theme</code>
-                </li>
-                <li>
-                    <strong>Authenticate:</strong><br>
-                    Run: <code>shopify auth login</code>
-                </li>
-                <li>
-                    <strong>Start Development:</strong><br>
-                    Run: <code>shopify theme dev --store your-store.myshopify.com</code>
-                </li>
-            </ol>
+
+        <h2>📱 Available Pages</h2>
+        <ul>
+            <li><a href="/">Homepage</a> - Main landing page with featured products</li>
+            <li><a href="/collections/all">All Products Collection</a> - Browse all products</li>
+            <li><a href="/products/wireless-bluetooth-speaker">Product: Bluetooth Speaker</a></li>
+            <li><a href="/products/organic-cotton-tshirt">Product: Organic T-Shirt</a></li>
+            <li><a href="/products/leather-wallet">Product: Leather Wallet</a></li>
+            <li><a href="/products/stainless-steel-water-bottle">Product: Water Bottle</a></li>
+            <li><a href="/cart">Shopping Cart</a></li>
+        </ul>
+
+        <h2>🛠️ What You Can Do</h2>
+        <ul>
+            <li>Preview your theme's design and layout</li>
+            <li>Edit CSS files in <code>/assets</code> to change styling</li>
+            <li>Modify Liquid templates in <code>/sections</code> and <code>/templates</code></li>
+            <li>Update mock data in <code>mock-data.js</code> to test different scenarios</li>
+            <li>See changes in real-time as you develop</li>
+        </ul>
+
+        <h2>📝 Next Steps</h2>
+        <ul>
+            <li>Customize your theme using the files in this project</li>
+            <li>When ready, connect to Shopify using Shopify CLI</li>
+            <li>Push your theme to your Shopify store</li>
+        </ul>
+
+        <div style="margin-top: 30px; text-align: center;">
+            <a href="/" class="btn">View Homepage</a>
+            <a href="/collections/all" class="btn">Browse Products</a>
         </div>
-        
-        <div class="steps">
-            <h3>📁 Project Structure</h3>
-            <ul style="list-style: none; padding-left: 0;">
-                <li>📂 <strong>assets/</strong> - CSS, JavaScript, images, and icons</li>
-                <li>📂 <strong>config/</strong> - Theme settings and configuration</li>
-                <li>📂 <strong>layout/</strong> - Base layout templates</li>
-                <li>📂 <strong>sections/</strong> - Reusable page sections</li>
-                <li>📂 <strong>snippets/</strong> - Reusable code blocks</li>
-                <li>📂 <strong>templates/</strong> - Page templates</li>
-                <li>📂 <strong>locales/</strong> - Translation files</li>
-            </ul>
-        </div>
-        
-        <div class="assets-link">
-            <a href="/assets/" class="btn">📦 Browse Static Assets</a>
-        </div>
-        
-        <footer>
-            <p>Need help? Visit <a href="https://shopify.dev/docs/themes" target="_blank" style="color: #667eea;">Shopify Theme Documentation</a></p>
-        </footer>
     </div>
 </body>
 </html>
@@ -212,96 +297,18 @@ app.get('/', (req, res) => {
   res.send(htmlContent);
 });
 
-// List assets directory
-app.get('/assets/', (req, res) => {
-  fs.readdir(path.join(__dirname, 'assets'), (err, files) => {
-    if (err) {
-      return res.status(500).send('Error reading assets directory');
-    }
-    
-    const fileList = files.map(file => {
-      const ext = path.extname(file);
-      let icon = '📄';
-      if (['.css'].includes(ext)) icon = '🎨';
-      if (['.js'].includes(ext)) icon = '⚙️';
-      if (['.svg', '.png', '.jpg', '.gif'].includes(ext)) icon = '🖼️';
-      
-      return `<li><a href="/assets/${file}">${icon} ${file}</a></li>`;
-    }).join('');
-    
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Assets Directory</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 1200px;
-            margin: 40px auto;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-        .header {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        h1 {
-            margin: 0;
-            color: #333;
-        }
-        .back-link {
-            display: inline-block;
-            margin-top: 10px;
-            color: #667eea;
-            text-decoration: none;
-        }
-        .file-list {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        ul {
-            list-style: none;
-            padding: 0;
-        }
-        li {
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-        }
-        li:last-child {
-            border-bottom: none;
-        }
-        a {
-            color: #333;
-            text-decoration: none;
-        }
-        a:hover {
-            color: #667eea;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>📦 Assets Directory</h1>
-        <a href="/" class="back-link">← Back to Home</a>
-    </div>
-    <div class="file-list">
-        <ul>${fileList}</ul>
-    </div>
-</body>
-</html>
-    `;
-    
-    res.send(html);
-  });
+// Catch-all for missing pages
+app.use((req, res) => {
+  res.status(404).send(`
+    <h1>Page Not Found</h1>
+    <p>The page "${req.path}" doesn't exist in this preview.</p>
+    <p><a href="/info">View Available Pages</a> | <a href="/">Go to Homepage</a></p>
+  `);
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Shopify theme preview server running on port ${PORT}`);
-  console.log(`Visit http://0.0.0.0:${PORT} to view the information page`);
+  console.log(`\n🎨 Shopify Theme Preview Server`);
+  console.log(`📍 Running on http://0.0.0.0:${PORT}`);
+  console.log(`\n✨ Your theme is now rendering with mock data!`);
+  console.log(`📄 Visit /info for available pages and options\n`);
 });
