@@ -1,0 +1,15 @@
+{
+  "name": "shopify-theme-preview",
+  "version": "1.0.0",
+  "description": "Static preview server for Shopify theme",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["shopify", "theme"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
