@@ -94,9 +94,10 @@ function registerShopifyTags(engine) {
         });
       stream.start();
     },
-    render: async function(ctx) {
-      const html = await this.liquid.renderer.renderTemplates(this.tokens, ctx);
-      return `<style>${html}</style>`;
+    * render(ctx, emitter) {
+      emitter.write('<style>');
+      yield this.liquid.renderer.renderTemplates(this.tokens, ctx, emitter);
+      emitter.write('</style>');
     }
   });
 
@@ -129,9 +130,10 @@ function registerShopifyTags(engine) {
         });
       stream.start();
     },
-    render: async function(ctx) {
-      const html = await this.liquid.renderer.renderTemplates(this.tokens, ctx);
-      return `<script>${html}</script>`;
+    * render(ctx, emitter) {
+      emitter.write('<script>');
+      yield this.liquid.renderer.renderTemplates(this.tokens, ctx, emitter);
+      emitter.write('</script>');
     }
   });
 
@@ -139,14 +141,13 @@ function registerShopifyTags(engine) {
     parse: function(tagToken) {
       this.group = tagToken.args.trim().replace(/['"]/g, '');
     },
-    render: async function(ctx) {
+    * render(ctx, emitter) {
       const groupFile = `${this.group}.json`;
       const groupPath = path.join(THEME_DIR, 'sections', groupFile);
       
       if (fs.existsSync(groupPath)) {
         try {
           const groupData = JSON.parse(fs.readFileSync(groupPath, 'utf8'));
-          let html = '';
           
           // Respect Shopify's section order array
           const sectionOrder = groupData.order || Object.keys(groupData.sections || {});
@@ -157,6 +158,8 @@ function registerShopifyTags(engine) {
               const sectionFile = `${sectionConfig.type}.liquid`;
               const blocks = [];
               const blockOrder = sectionConfig.block_order || Object.keys(sectionConfig.blocks || {});
+              
+              const tempContext = ctx.getAll();
               
               if (sectionConfig.blocks) {
                 for (const blockId of blockOrder) {
@@ -172,7 +175,7 @@ function registerShopifyTags(engine) {
               }
               
               const sectionData = {
-                ...ctx.getAll(),
+                ...tempContext,
                 section: {
                   id: sectionKey,
                   settings: sectionConfig.settings || {},
@@ -181,22 +184,17 @@ function registerShopifyTags(engine) {
               };
               
               try {
-                const rendered = await this.liquid.renderFile(sectionFile, sectionData);
-                html += rendered;
+                const templates = yield this.liquid.parseFile(sectionFile);
+                yield this.liquid.renderer.renderTemplates(templates, sectionData, emitter);
               } catch (err) {
                 console.error(`Error rendering section ${sectionFile}:`, err.message);
               }
             }
           }
-          
-          return html;
         } catch (err) {
           console.error(`Error loading section group ${groupFile}:`, err.message);
-          return '';
         }
       }
-      
-      return '';
     }
   });
 
@@ -213,9 +211,10 @@ function registerShopifyTags(engine) {
         });
       stream.start();
     },
-    render: async function(ctx) {
-      const content = await this.liquid.renderer.renderTemplates(this.tokens, ctx);
-      return `<form class="shopify-${this.formType}-form" method="post">${content}</form>`;
+    * render(ctx, emitter) {
+      emitter.write(`<form class="shopify-${this.formType}-form" method="post">`);
+      yield this.liquid.renderer.renderTemplates(this.tokens, ctx, emitter);
+      emitter.write('</form>');
     }
   });
 
@@ -231,7 +230,7 @@ function registerShopifyTags(engine) {
         });
       stream.start();
     },
-    render: async function(ctx) {
+    * render(ctx, emitter) {
       const paginate = {
         current_page: 1,
         pages: 1,
@@ -241,8 +240,7 @@ function registerShopifyTags(engine) {
         next: null
       };
       ctx.environments.paginate = paginate;
-      const html = await this.liquid.renderer.renderTemplates(this.tokens, ctx);
-      return html;
+      yield this.liquid.renderer.renderTemplates(this.tokens, ctx, emitter);
     }
   });
 
@@ -451,6 +449,23 @@ function createFontObject(fontName) {
   };
 }
 
+// Helper to process settings and re-render Liquid strings
+async function processSettingsWithLiquid(settings, context, engine) {
+  const processed = {};
+  for (const [key, value] of Object.entries(settings)) {
+    if (typeof value === 'string' && (value.includes('{{') || value.includes('{%'))) {
+      try {
+        processed[key] = await engine.parseAndRender(value, context);
+      } catch (err) {
+        processed[key] = value;
+      }
+    } else {
+      processed[key] = value;
+    }
+  }
+  return processed;
+}
+
 // Helper to render a page with theme layout
 async function renderPage(template, data = {}) {
   try {
@@ -514,17 +529,22 @@ async function renderPage(template, data = {}) {
                   for (const blockId of blockOrder) {
                     const blockConfig = sectionConfig.blocks[blockId];
                     if (blockConfig) {
+                      const processedBlockSettings = await processSettingsWithLiquid(
+                        blockConfig.settings || {},
+                        fullData,
+                        engine
+                      );
                       blocks.push({
                         id: blockId,
                         type: blockConfig.type,
-                        settings: blockConfig.settings || {}
+                        settings: processedBlockSettings
                       });
                     }
                   }
                 }
                 
                 // Handle product references in section settings
-                const sectionSettings = { ...(sectionConfig.settings || {}) };
+                let sectionSettings = { ...(sectionConfig.settings || {}) };
                 if (sectionSettings.product && typeof sectionSettings.product === 'string') {
                   // Try to find the product by handle
                   const product = fullData.products.find(p => p.handle === sectionSettings.product);
@@ -543,6 +563,9 @@ async function renderPage(template, data = {}) {
                     blocks: blocks
                   }
                 };
+                
+                // Process Liquid in settings
+                sectionData.section.settings = await processSettingsWithLiquid(sectionSettings, sectionData, engine);
                 
                 const rendered = await engine.renderFile(sectionFile, sectionData);
                 pageContent += rendered;

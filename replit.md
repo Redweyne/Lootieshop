@@ -61,10 +61,17 @@ A Node.js/Express application that allows developers to preview and edit Shopify
 - **Cache Control**: Disabled for development
 
 ## Recent Changes
-- November 5, 2025: Initial setup in Replit environment
+- November 5, 2025: Initial setup and critical bug fixes
   - Configured workflow to run server on port 5000
   - Updated .gitignore for Node.js best practices
-  - Documented project structure and features
+  - **Fixed critical rendering issues:**
+    - Fixed `{% style %}` and `{% javascript %}` tags to use generator syntax (was showing "[object Generator]")
+    - Fixed `{% form %}` and `{% paginate %}` tags to properly render content
+    - Fixed `{% sections %}` tag for proper section group rendering
+    - Added Liquid re-rendering for settings strings containing variables
+    - Fixed font preload tags by adding `system?` property support
+  - Theme now renders with full CSS styling and proper layout
+  - Deployment configured for autoscale mode
 
 ## User Preferences
 None specified yet.
