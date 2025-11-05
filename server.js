@@ -148,8 +148,12 @@ function registerShopifyTags(engine) {
           const groupData = JSON.parse(fs.readFileSync(groupPath, 'utf8'));
           let html = '';
           
-          for (const [sectionKey, sectionConfig] of Object.entries(groupData.sections || {})) {
-            if (sectionConfig.type) {
+          // Respect Shopify's section order array
+          const sectionOrder = groupData.order || Object.keys(groupData.sections || {});
+          
+          for (const sectionKey of sectionOrder) {
+            const sectionConfig = groupData.sections?.[sectionKey];
+            if (sectionConfig && sectionConfig.type) {
               const sectionFile = `${sectionConfig.type}.liquid`;
               const blocks = [];
               const blockOrder = sectionConfig.block_order || Object.keys(sectionConfig.blocks || {});
@@ -378,8 +382,12 @@ async function renderPage(template, data = {}) {
         const templateData = JSON.parse(templateContent);
         pageContent = '';
         
-        for (const [sectionKey, sectionConfig] of Object.entries(templateData.sections || {})) {
-          if (sectionConfig.type) {
+        // Respect Shopify's section order array
+        const sectionOrder = templateData.order || Object.keys(templateData.sections || {});
+        
+        for (const sectionKey of sectionOrder) {
+          const sectionConfig = templateData.sections?.[sectionKey];
+          if (sectionConfig && sectionConfig.type) {
             const sectionFile = `${sectionConfig.type}.liquid`;
             const sectionPath = path.join(THEME_DIR, 'sections', sectionFile);
             

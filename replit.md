@@ -1,107 +1,214 @@
-# Shopify Theme - Dawn (or Custom Theme)
+# Shopify Theme Preview Tool
 
 ## Overview
-This is a Shopify theme repository containing Liquid templates, CSS, and JavaScript files used to build an e-commerce storefront on Shopify's platform.
+A complete web-based tool for uploading, previewing, editing, and downloading Shopify themes. This tool allows you to work on Shopify themes without needing a Shopify account, and ensures full compatibility when uploading back to Shopify.
+
+## How to Use
+
+### 1. Access the Admin Dashboard
+Visit the root URL to access the admin dashboard at `/admin`
+
+### 2. Upload a Shopify Theme
+- Click the upload area or drag and drop a Shopify theme ZIP file
+- The tool will automatically extract and load your theme
+- Your theme is now ready to preview and edit
+
+### 3. Preview Your Theme
+- Click "Open Preview" to see your theme rendered with mock data
+- Available preview pages:
+  - Homepage (/)
+  - Product pages
+  - Collection pages
+  - Cart page
+  - And more
+
+### 4. Edit Theme Files
+- Use the File Manager to browse all theme files
+- Click any file to open it in the editor
+- Make changes and save
+- Changes are immediately reflected in the preview
+
+### 5. Download Modified Theme
+- Click "Download ZIP" to export your theme
+- Upload the downloaded ZIP directly to Shopify
+- All modifications are preserved and Shopify-compatible
 
 ## Project Structure
-- **assets/** - Static assets (CSS, JavaScript, images, icons)
-- **config/** - Theme configuration and settings
-- **layout/** - Core layout templates (theme.liquid, password.liquid)
-- **locales/** - Translation files for internationalization
-- **sections/** - Reusable theme sections (header, footer, product, etc.)
-- **snippets/** - Reusable code snippets
-- **templates/** - Page templates (product, collection, blog, etc.)
+
+### Server Components
+- **server.js** - Main server with upload/download/preview functionality
+- **mock-data.js** - Sample Shopify data for theme previewing
+- **current-theme/** - Working directory for uploaded themes
+
+### Theme Structure (Shopify Standard)
+```
+current-theme/
+├── assets/          # CSS, JavaScript, images, fonts
+├── config/          # Theme settings and configuration
+│   ├── settings_schema.json
+│   └── settings_data.json
+├── layout/          # Master templates (theme.liquid required)
+├── locales/         # Translation files
+├── sections/        # Reusable page sections
+├── snippets/        # Small reusable code blocks
+└── templates/       # Page templates (index, product, etc.)
+```
 
 ## Technology Stack
-- **Liquid** - Shopify's templating language
-- **Vanilla JavaScript** - Custom elements and interactivity
-- **CSS** - Modern CSS with CSS variables, Grid, and Flexbox
-- **Shopify Platform** - E-commerce backend
+- **Node.js/Express** - Web server
+- **LiquidJS** - Liquid template rendering engine
+- **AdmZip** - ZIP file handling
+- **Multer/Express-FileUpload** - File upload handling
+- **Mock Shopify API** - Simulated Shopify data
 
-## Important Notes
-**This is a Shopify theme and cannot run standalone in Replit.** Shopify themes require:
-1. A Shopify store (development or production)
-2. Shopify CLI for local development
-3. Authentication with Shopify
+## Features
 
-## Setup Instructions
+### ✅ Complete Shopify Theme Support
+- Full Liquid template rendering
+- All Shopify-specific tags ({% style %}, {% schema %}, {% sections %}, {% form %}, etc.)
+- All standard Shopify filters (money, asset_url, image_url, etc.)
+- Section blocks with proper structure
+- JSON templates (OS 2.0)
 
-### Prerequisites
-1. A Shopify Partner account (free at partners.shopify.com)
-2. A development store or production Shopify store
-3. Shopify CLI installed
+### ✅ Upload & Download
+- Upload any Shopify theme ZIP file
+- Automatic extraction and validation
+- Download modified themes as ZIP
+- Maintains Shopify-compatible structure
 
-### To Use This Theme with Shopify CLI
+### ✅ Live Preview
+- Real-time theme rendering
+- Mock product and store data
+- Multiple page types (home, product, collection, cart)
+- Asset serving (CSS, JS, images)
 
-This theme is designed to work with the Shopify platform and requires the Shopify CLI to run locally. Unfortunately, it cannot be previewed as a standalone website in Replit without connecting to a Shopify store.
+### ✅ File Management
+- Browse all theme files
+- Code editor with syntax highlighting
+- Save changes in real-time
+- Organized file tree view
 
-If you want to develop this theme:
-1. Install Shopify CLI locally on your machine
-2. Authenticate with your Shopify store
-3. Use `shopify theme dev` to run a local development server
-4. Push changes using `shopify theme push`
+### ✅ Developer-Friendly
+- No Shopify account needed for development
+- Cache control for instant updates
+- Error messages and debugging info
+- Preserves original theme structure
 
-### Alternative: Static Preview (Limited)
-A basic static preview server could be created to view individual templates and assets, but it won't have Shopify's dynamic features like products, cart, checkout, etc.
+## Routes
 
-## Replit Setup
+### Admin Routes
+- `GET /admin` - Main dashboard
+- `POST /admin/upload` - Upload theme ZIP
+- `GET /admin/files` - File manager
+- `POST /admin/save-file` - Save edited file
+- `GET /admin/download` - Download theme ZIP
 
-### Current Configuration
-- **Preview Server**: A Node.js/Express server that renders the Shopify theme with mock data
+### Preview Routes
+- `GET /preview` - Homepage preview
+- `GET /preview/products/:handle` - Product pages
+- `GET /preview/collections/:handle` - Collection pages
+- `GET /preview/cart` - Cart page
+- `GET /preview/info` - Information page
+
+### Asset Routes
+- `GET /theme-assets/*` - Theme static assets
+
+## Shopify Compatibility
+
+### Maintained Structure
+The tool preserves the exact Shopify theme structure:
+- All folders (assets, config, layout, sections, snippets, templates, locales)
+- File naming conventions
+- JSON template format
+- Section schema format
+
+### Supported Shopify Features
+- ✅ Liquid template language
+- ✅ Shopify-specific tags
+- ✅ Custom filters
+- ✅ Section rendering
+- ✅ Block ordering
+- ✅ Settings data
+- ✅ Localization
+- ✅ Asset pipeline
+
+### Download & Upload to Shopify
+1. Download your theme using "Download ZIP"
+2. Go to Shopify Admin → Online Store → Themes
+3. Click "Add theme" → "Upload ZIP file"
+4. Upload your downloaded ZIP
+5. Theme works exactly as developed
+
+## Mock Data
+
+The tool includes sample data for preview:
+- **Products**: Bluetooth speaker, t-shirt, wallet, water bottle
+- **Collections**: All products collection
+- **Shop**: Demo store settings
+- **Cart**: Empty cart (mockable)
+
+Modify `mock-data.js` to add more products or customize preview data.
+
+## Development Workflow
+
+1. **Import existing theme**: Upload your current Shopify theme
+2. **Preview**: See how it looks with sample data
+3. **Edit**: Make changes to Liquid, CSS, JS files
+4. **Test**: Refresh preview to see changes
+5. **Download**: Export modified theme
+6. **Deploy**: Upload to Shopify
+
+## Configuration
+
+### Replit Environment
 - **Port**: 5000 (webview)
-- **Host**: 0.0.0.0
-- **Liquid Engine**: LiquidJS with custom Shopify tags and filters
-- **Mock Data**: Sample products, collections, and store settings in `mock-data.js`
+- **Host**: 0.0.0.0 (required for Replit proxy)
+- **Cache**: Disabled for development
+- **File Limits**: 100MB max upload size
 
-### How It Works
-The preview server:
-1. Parses Liquid templates using LiquidJS engine
-2. Injects mock Shopify data (products, collections, shop settings)
-3. Renders sections with their blocks and settings
-4. Serves all static assets (CSS, JS, images)
-5. Displays the theme layout exactly as it would appear in Shopify
+### Deployment
+- **Target**: Autoscale (stateless)
+- **Command**: `node server.js`
+- **Environment**: Production-ready
 
-### Available Pages
-- **/** - Homepage with featured products and sections
-- **/collections/all** - Product collection page
-- **/products/[handle]** - Individual product pages
-- **/cart** - Shopping cart page
-- **/info** - Information page with links and instructions
+## Limitations
 
-### Features
-✅ Liquid template rendering  
-✅ Shopify-specific tags (style, schema, sections, form, paginate)  
-✅ Shopify filters (money, asset_url, image_url, etc.)  
-✅ Section blocks with proper structure  
-✅ Mock product and store data  
-✅ CSS and JavaScript loading  
-✅ Real-time preview
+### Expected Behaviors
+- Some Shopify JavaScript features require the actual platform
+- Mock data is limited (customize in mock-data.js)
+- Advanced Shopify apps/integrations won't work in preview
+- Some dynamic features are simplified for preview
 
-### Customization
-- **Edit theme**: Modify files in `sections/`, `snippets/`, `layout/`, `templates/`
-- **Change styling**: Edit CSS files in `assets/`
-- **Modify mock data**: Update `mock-data.js` to test different products/scenarios
-- **View changes**: Refresh the preview to see updates
-
-### Limitations
-- Some advanced Shopify features may not render perfectly (this is a preview, not full Shopify)
-- Shopify-specific JavaScript features require the actual Shopify platform
-- Dynamic features (cart, checkout) are mocked for preview only
-- Some snippets may show rendering artifacts
-
-### Deployment to Shopify
-When ready to deploy:
-1. Use Shopify CLI: `shopify theme dev`
-2. Or upload the theme files directly in Shopify Admin
-3. All your design changes will carry over
-
-### Deployment on Replit
-- Configured for autoscale deployment (stateless)
-- Runs the preview server for demonstration purposes
+### Security
+- Files must stay within theme directory
+- ZIP validation checks for theme.liquid
+- File size limits prevent abuse
 
 ## Recent Changes
-- 2025-11-05: Project imported from GitHub and successfully set up in Replit environment
-- 2025-11-05: Dependencies installed (Express, LiquidJS)
-- 2025-11-05: Preview Server workflow configured and running on port 5000
-- 2025-11-05: Deployment configuration set up for autoscale
-- 2025-11-05: Theme preview server fully operational with mock Shopify data
+- 2025-11-05: Created complete Shopify Theme Preview Tool
+- 2025-11-05: Added upload/download functionality with ZIP handling
+- 2025-11-05: Built file manager with code editor
+- 2025-11-05: Implemented full Liquid rendering engine
+- 2025-11-05: Added Shopify-compatible structure preservation
+- 2025-11-05: Configured for Replit deployment
+
+## User Preferences
+- Clean, modern UI with purple gradient theme
+- Drag-and-drop file upload
+- Real-time file editing
+- One-click download
+- No technical jargon in interface
+
+## Support
+
+### Common Issues
+**Theme won't preview**: Check that layout/theme.liquid exists
+**Assets not loading**: Verify assets folder structure
+**Upload fails**: Ensure file is a valid ZIP under 100MB
+**Changes not visible**: Clear browser cache or hard refresh
+
+### Getting Help
+- Check error messages in preview
+- View console logs for debugging
+- Verify Shopify theme structure
+- Test with a known-good Shopify theme first
