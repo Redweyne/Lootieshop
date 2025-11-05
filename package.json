@@ -13,7 +13,10 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "adm-zip": "^0.5.16",
     "express": "^4.18.2",
-    "liquidjs": "^10.24.0"
+    "express-fileupload": "^1.5.2",
+    "liquidjs": "^10.24.0",
+    "multer": "^2.0.2"
   }
 }
