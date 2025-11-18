@@ -289,37 +289,54 @@ function registerShopifyTags(engine) {
   });
   engine.registerFilter('image_url', (input, options) => {
     const placeholders = [
-      'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&h=800&fit=crop',
-      'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&h=800&fit=crop',
-      'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&h=800&fit=crop',
-      'https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=800&h=800&fit=crop',
-      'https://images.unsplash.com/photo-1560343090-f0409e92791a?w=800&h=800&fit=crop',
-      'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=800&h=800&fit=crop',
-      'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&h=800&fit=crop',
-      'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=800&h=800&fit=crop'
+      'https://images.unsplash.com/photo-1523275335684-37898b6baf30',
+      'https://images.unsplash.com/photo-1505740420928-5e560c06d30e',
+      'https://images.unsplash.com/photo-1572635196237-14b3f281503f',
+      'https://images.unsplash.com/photo-1491553895911-0055eca6402d',
+      'https://images.unsplash.com/photo-1560343090-f0409e92791a',
+      'https://images.unsplash.com/photo-1523381210434-271e8be1f52b',
+      'https://images.unsplash.com/photo-1542291026-7eec264c27ff',
+      'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c'
     ];
     
     let placeholderIndex = 0;
     if (typeof input === 'string' && input.length > 0) {
       placeholderIndex = input.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % placeholders.length;
     }
-    const placeholder = placeholders[placeholderIndex];
+    let placeholder = placeholders[placeholderIndex];
     
+    let url = null;
     if (typeof input === 'string') {
       if (input.startsWith('shopify://')) {
-        return placeholder;
+        url = placeholder;
+      } else if (input.startsWith('http://') || input.startsWith('https://')) {
+        url = input;
+      } else {
+        url = input;
       }
-      if (input.startsWith('http://') || input.startsWith('https://')) {
-        return input;
-      }
-      return input;
-    }
-    if (input && input.src) {
+    } else if (input && input.src) {
       if (typeof input.src === 'string' && (input.src.startsWith('http://') || input.src.startsWith('https://'))) {
-        return input.src;
+        url = input.src;
+      } else {
+        url = placeholder;
+      }
+    } else {
+      url = placeholder;
+    }
+    
+    if (url && options && typeof options === 'object') {
+      const width = options.width;
+      const height = options.height;
+      if (url.includes('unsplash.com') && (width || height)) {
+        const params = new URLSearchParams();
+        if (width) params.append('w', width);
+        if (height) params.append('h', height);
+        params.append('fit', 'crop');
+        url = url.split('?')[0] + '?' + params.toString();
       }
     }
-    return placeholder;
+    
+    return url;
   });
   engine.registerFilter('image_tag', (input, options) => {
     const placeholder = 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=800&fit=crop';

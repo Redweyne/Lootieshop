@@ -264,9 +264,35 @@ mockData.getProductByHandle = function(handle) {
   return this.products.find(p => p.handle === handle);
 };
 
-// Add selected_or_first_available_variant to each product
+// Add selected_or_first_available_variant and media to each product
 mockData.products.forEach(product => {
+  // Convert images to media format (Shopify uses product.media)
+  product.media = product.images.map((img, index) => ({
+    id: `media-${product.id}-${index}`,
+    media_type: 'image',
+    alt: img.alt || product.title,
+    position: index + 1,
+    preview_image: {
+      src: img.src,
+      alt: img.alt || product.title,
+      aspect_ratio: 1.0,
+      width: 800,
+      height: 800
+    },
+    src: img.src,
+    width: 800,
+    height: 800,
+    aspect_ratio: 1.0
+  }));
+  
+  // Add featured_media to each variant (use first media item)
+  product.variants.forEach((variant, variantIndex) => {
+    variant.featured_media = product.media[0] || null;
+    variant.image = product.featured_image;
+  });
+  
   product.selected_or_first_available_variant = product.variants[0];
+  product.featured_media = product.media[0] || null;
 });
 
 module.exports = mockData;
