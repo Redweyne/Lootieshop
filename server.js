@@ -341,11 +341,53 @@ function registerShopifyTags(engine) {
   engine.registerFilter('image_tag', (input, options) => {
     const placeholder = 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&h=800&fit=crop';
     const src = input || placeholder;
-    const width = options && options.width ? `width="${options.width}"` : '';
-    const height = options && options.height ? `height="${options.height}"` : '';
-    const className = options && options.class ? `class="${options.class}"` : '';
-    const alt = options && options.alt ? options.alt : 'Image';
-    return `<img src="${src}" alt="${alt}" ${width} ${height} ${className} loading="lazy">`;
+    
+    const attributes = [];
+    attributes.push(`src="${src}"`);
+    
+    if (options) {
+      if (options.alt) {
+        attributes.push(`alt="${options.alt}"`);
+      } else {
+        attributes.push(`alt="Product image"`);
+      }
+      
+      if (options.width) {
+        attributes.push(`width="${options.width}"`);
+      }
+      if (options.height) {
+        attributes.push(`height="${options.height}"`);
+      }
+      if (options.class) {
+        attributes.push(`class="${options.class}"`);
+      }
+      
+      if (options.widths) {
+        const widthsArray = typeof options.widths === 'string' 
+          ? options.widths.split(',').map(w => w.trim()) 
+          : [];
+        
+        if (widthsArray.length > 0 && src.includes('unsplash.com')) {
+          const srcsetParts = widthsArray.map(w => {
+            const baseUrl = src.split('?')[0];
+            return `${baseUrl}?w=${w}&fit=crop ${w}w`;
+          });
+          attributes.push(`srcset="${srcsetParts.join(', ')}"`);
+        }
+      }
+      
+      if (options.sizes) {
+        attributes.push(`sizes="${options.sizes}"`);
+      }
+      
+      const loading = options.loading || 'lazy';
+      attributes.push(`loading="${loading}"`);
+    } else {
+      attributes.push(`alt="Image"`);
+      attributes.push(`loading="lazy"`);
+    }
+    
+    return `<img ${attributes.join(' ')}>`;
   });
   engine.registerFilter('placeholder_svg_tag', (input, className) => {
     return `<svg class="${className || ''}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 525 525"><path fill="#999" d="M324.5 212.7H203.7l120.8-120.8 37.5-37.5c-11.4-6.4-24.2-10.8-37.5-13.1L204.7 161.2 84.9 41.3 64 62.2l120.8 120.8L64 303.8l19.2 19.2L204 202.2 324.8 323l19.2-19.2L223.2 183l120.8-120.8c-6.4-11.4-13.9-21.6-21.5-30.2L202.7 152.8l120.8 120.8c-.1.1-.1.1 0 0z"/></svg>`;

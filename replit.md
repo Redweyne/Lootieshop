@@ -61,6 +61,15 @@ A Node.js/Express application that allows developers to preview and edit Shopify
 - **Cache Control**: Disabled for development
 
 ## Recent Changes
+- November 18, 2025: **CRITICAL FIX - Product Images Now Rendering with Realistic Placeholders**
+  - **Replaced gradient placeholders with Unsplash photos** - All products now show realistic images (JBL speaker, t-shirt, wallet, water bottle)
+  - **Enhanced image_url filter** to handle width/height parameters like Shopify (supports responsive sizing)
+  - **Enhanced image_tag filter** to generate proper srcset attributes for responsive images
+  - **Fixed product.media structure** - Added proper featured_media to variants matching Shopify's data format
+  - **Fixed Liquid variable scoping** - Changed from `{% render %}` to `{% include %}` in main-product.liquid to allow media gallery access to product data
+  - **Fixed directory confusion** - Server uses `current-theme/` directory, not root theme directories
+  - **Result**: 100% Shopify-like rendering with real placeholder images on all pages (homepage, product, collection)
+  
 - November 18, 2025: **Major Enhancement - Live Preview Editor**
   - **Split-screen editor** with live preview iframe
   - **CodeMirror integration** with syntax highlighting for Liquid/HTML
@@ -72,7 +81,6 @@ A Node.js/Express application that allows developers to preview and edit Shopify
 
 - November 18, 2025: **Critical Rendering Fixes**
   - **Fixed section rendering** by creating proper LiquidJS Context objects instead of passing plain data
-  - **Beautiful gradient placeholders** - Replaced gray SVG with 5 gradient colors (purple, blue, peach, mint green, coral pink)
   - **Enhanced error logging** with stack traces and section config for better debugging
   - Header, footer, announcement bars now render correctly
   - All templates verified working: homepage, product pages, collection pages, cart
