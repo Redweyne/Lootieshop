@@ -9,7 +9,26 @@ const mockData = {
     email: "contact@demo-store.com",
     currency: "USD",
     money_format: "${{amount}}",
-    money_with_currency_format: "${{amount}} USD"
+    money_with_currency_format: "${{amount}} USD",
+    checkout: {
+      guest_login: true
+    }
+  },
+  
+  routes: {
+    root_url: "/",
+    account_url: "/account",
+    account_login_url: "/account/login",
+    account_logout_url: "/account/logout",
+    account_register_url: "/account/register",
+    account_addresses_url: "/account/addresses",
+    collections_url: "/collections",
+    all_products_collection_url: "/collections/all",
+    cart_url: "/cart",
+    cart_add_url: "/cart/add",
+    cart_change_url: "/cart/change",
+    cart_update_url: "/cart/update",
+    search_url: "/search"
   },
 
   settings: {

@@ -414,6 +414,18 @@ function registerShopifyTags(engine) {
     };
     return translations[input] || input.split('.').pop();
   });
+  engine.registerFilter('inline_asset_content', (input) => {
+    // Load and return the content of an asset file (like SVG icons)
+    try {
+      const assetPath = path.join(THEME_DIR, 'assets', input);
+      if (fs.existsSync(assetPath)) {
+        return fs.readFileSync(assetPath, 'utf8');
+      }
+    } catch (err) {
+      console.error(`Error loading inline asset ${input}:`, err.message);
+    }
+    return '';
+  });
 
   return engine;
 }
@@ -449,6 +461,51 @@ function createFontObject(fontName) {
   };
 }
 
+// Create default color schemes for theme preview
+function createColorSchemes() {
+  const createColor = (r, g, b) => {
+    const hex = '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+    return {
+      red: r,
+      green: g,
+      blue: b,
+      rgb: `${r}, ${g}, ${b}`,
+      hex: hex,
+      toString: () => hex
+    };
+  };
+
+  const scheme1Bg = createColor(255, 255, 255);
+  const scheme2Bg = createColor(243, 243, 243);
+  
+  return [
+    {
+      id: 'scheme-1',
+      settings: {
+        background: scheme1Bg,
+        background_gradient: '',
+        text: createColor(18, 18, 18),
+        shadow: createColor(18, 18, 18),
+        button: createColor(18, 18, 18),
+        button_label: createColor(255, 255, 255),
+        secondary_button_label: createColor(18, 18, 18)
+      }
+    },
+    {
+      id: 'scheme-2',
+      settings: {
+        background: scheme2Bg,
+        background_gradient: '',
+        text: createColor(18, 18, 18),
+        shadow: createColor(18, 18, 18),
+        button: createColor(18, 18, 18),
+        button_label: createColor(255, 255, 255),
+        secondary_button_label: createColor(18, 18, 18)
+      }
+    }
+  ];
+}
+
 // Helper to process settings and re-render Liquid strings
 async function processSettingsWithLiquid(settings, context, engine) {
   const processed = {};
@@ -478,12 +535,13 @@ async function renderPage(template, data = {}) {
     const type_body_font = createFontObject(themeSettings.type_body_font);
     const type_header_font = createFontObject(themeSettings.type_header_font);
     
-    // Merge theme settings with mock settings
+    // Merge theme settings with mock settings and add color schemes
     const mergedSettings = {
       ...mockData.settings,
       ...themeSettings,
       type_body_font,
-      type_header_font
+      type_header_font,
+      color_schemes: createColorSchemes()
     };
     
     const fullData = {
