@@ -85,14 +85,22 @@ const mockData = {
       price_varies: false,
       compare_at_price: 9999,
       featured_image: {
-        src: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=800&h=800&fit=crop",
+        src: "/attached_assets/stock_images/professional_wireles_fa6a1210.jpg",
         alt: "Wireless Bluetooth Speaker"
       },
       images: [
-        { src: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=800&h=800&fit=crop", alt: "Speaker front" },
-        { src: "https://images.unsplash.com/photo-1545454675-3531b543be5d?w=800&h=800&fit=crop", alt: "Speaker side" }
+        { src: "/attached_assets/stock_images/professional_wireles_fa6a1210.jpg", alt: "Speaker front" }
       ],
       tags: ["electronics", "audio", "portable"],
+      options: ["Color"],
+      options_with_values: [
+        {
+          name: "Color",
+          position: 1,
+          values: ["Black"]
+        }
+      ],
+      has_only_default_variant: true,
       variants: [
         {
           id: 10011,
@@ -101,7 +109,16 @@ const mockData = {
           compare_at_price: 9999,
           available: true,
           option1: "Black",
-          sku: "SPK-BLK-001"
+          sku: "SPK-BLK-001",
+          weight: 500,
+          weight_unit: "g",
+          requires_shipping: true,
+          barcode: "",
+          inventory_quantity: 50,
+          inventory_management: "shopify",
+          inventory_policy: "deny",
+          unit_price: null,
+          unit_price_measurement: null
         }
       ]
     },
@@ -120,13 +137,27 @@ const mockData = {
       price_max: 2499,
       price_varies: false,
       featured_image: {
-        src: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&h=800&fit=crop",
+        src: "/attached_assets/stock_images/white_organic_cotton_1eb91b88.jpg",
         alt: "Organic Cotton T-Shirt"
       },
       images: [
-        { src: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&h=800&fit=crop", alt: "T-Shirt front" }
+        { src: "/attached_assets/stock_images/white_organic_cotton_1eb91b88.jpg", alt: "T-Shirt front" }
       ],
       tags: ["apparel", "organic", "cotton"],
+      options: ["Size", "Color"],
+      options_with_values: [
+        {
+          name: "Size",
+          position: 1,
+          values: ["Small", "Medium"]
+        },
+        {
+          name: "Color",
+          position: 2,
+          values: ["White"]
+        }
+      ],
+      has_only_default_variant: false,
       variants: [
         {
           id: 10021,
@@ -135,7 +166,13 @@ const mockData = {
           available: true,
           option1: "Small",
           option2: "White",
-          sku: "TSH-WHT-S"
+          sku: "TSH-WHT-S",
+          weight: 200,
+          weight_unit: "g",
+          requires_shipping: true,
+          inventory_quantity: 30,
+          inventory_management: "shopify",
+          inventory_policy: "deny"
         },
         {
           id: 10022,
@@ -144,7 +181,13 @@ const mockData = {
           available: true,
           option1: "Medium",
           option2: "White",
-          sku: "TSH-WHT-M"
+          sku: "TSH-WHT-M",
+          weight: 220,
+          weight_unit: "g",
+          requires_shipping: true,
+          inventory_quantity: 25,
+          inventory_management: "shopify",
+          inventory_policy: "deny"
         }
       ]
     },
@@ -163,11 +206,11 @@ const mockData = {
       price_max: 4999,
       price_varies: false,
       featured_image: {
-        src: "https://images.unsplash.com/photo-1627123424574-724758594e93?w=800&h=800&fit=crop",
+        src: "/attached_assets/stock_images/brown_leather_wallet_7f57be2c.jpg",
         alt: "Leather Wallet"
       },
       images: [
-        { src: "https://images.unsplash.com/photo-1627123424574-724758594e93?w=800&h=800&fit=crop", alt: "Wallet closed" }
+        { src: "/attached_assets/stock_images/brown_leather_wallet_7f57be2c.jpg", alt: "Wallet closed" }
       ],
       tags: ["accessories", "leather", "handmade"],
       variants: [
@@ -197,11 +240,11 @@ const mockData = {
       price_varies: false,
       compare_at_price: 4999,
       featured_image: {
-        src: "https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=800&h=800&fit=crop",
+        src: "/attached_assets/stock_images/stainless_steel_wate_1365968b.jpg",
         alt: "Water Bottle"
       },
       images: [
-        { src: "https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=800&h=800&fit=crop", alt: "Water bottle" }
+        { src: "/attached_assets/stock_images/stainless_steel_wate_1365968b.jpg", alt: "Water bottle" }
       ],
       tags: ["drinkware", "eco-friendly", "insulated"],
       variants: [
@@ -226,7 +269,64 @@ const mockData = {
       handle: "all",
       description: "Browse all our products",
       url: "/collections/all",
-      products: [] // Will be filled with all products
+      products: [], // Will be filled with all products
+      products_count: 0,
+      all_tags: [],
+      all_types: [],
+      all_vendors: [],
+      default_sort_by: "manual",
+      sort_by: "manual",
+      sort_options: [
+        { name: "Best selling", value: "best-selling" },
+        { name: "Alphabetically, A-Z", value: "title-ascending" },
+        { name: "Alphabetically, Z-A", value: "title-descending" },
+        { name: "Price, low to high", value: "price-ascending" },
+        { name: "Price, high to low", value: "price-descending" },
+        { name: "Date, old to new", value: "created-ascending" },
+        { name: "Date, new to old", value: "created-descending" }
+      ],
+      filters: [
+        {
+          label: "Availability",
+          type: "boolean",
+          param_name: "filter.v.availability",
+          values: [
+            { label: "In stock", value: "1", count: 4, active: false },
+            { label: "Out of stock", value: "0", count: 0, active: false }
+          ]
+        },
+        {
+          label: "Price",
+          type: "price_range",
+          param_name: "filter.v.price",
+          range_min: 2499,
+          range_max: 7999,
+          min_value: { amount: 2499, currency: "USD" },
+          max_value: { amount: 7999, currency: "USD" }
+        },
+        {
+          label: "Product type",
+          type: "list",
+          param_name: "filter.p.product_type",
+          values: [
+            { label: "Electronics", value: "Electronics", count: 1, active: false },
+            { label: "Apparel", value: "Apparel", count: 1, active: false },
+            { label: "Accessories", value: "Accessories", count: 1, active: false },
+            { label: "Drinkware", value: "Drinkware", count: 1, active: false }
+          ]
+        },
+        {
+          label: "Vendor",
+          type: "list",
+          param_name: "filter.p.vendor",
+          values: [
+            { label: "TechBrand", value: "TechBrand", count: 1, active: false },
+            { label: "EcoWear", value: "EcoWear", count: 1, active: false },
+            { label: "Artisan Goods", value: "Artisan Goods", count: 1, active: false },
+            { label: "HydroLife", value: "HydroLife", count: 1, active: false }
+          ]
+        }
+      ]
     }
   },
 
@@ -234,11 +334,25 @@ const mockData = {
     item_count: 0,
     items: [],
     total_price: 0,
+    original_total_price: 0,
+    total_discount: 0,
+    total_weight: 0,
     currency: "USD",
-    note: ""
+    items_subtotal_price: 0,
+    note: "",
+    attributes: {},
+    requires_shipping: false,
+    cart_level_discount_applications: []
   },
 
   customer: null, // Not logged in
+  
+  theme: {
+    id: 123456789,
+    name: "Dawn",
+    role: "main",
+    theme_store_id: null
+  },
 
   page_title: "Demo Store",
 

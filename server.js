@@ -171,7 +171,7 @@ function registerShopifyTags(engine) {
                       id: blockId,
                       type: blockConfig.type,
                       settings: blockConfig.settings || {},
-                      shopify_attributes: ''
+                      shopify_attributes: ` data-block-id="${blockId}" data-block-type="${blockConfig.type}"`
                     });
                   }
                 }
@@ -189,7 +189,7 @@ function registerShopifyTags(engine) {
                   id: sectionKey,
                   settings: sectionConfig.settings || {},
                   blocks: blocks,
-                  shopify_attributes: ''
+                  shopify_attributes: ` data-section-id="${sectionKey}" data-section-type="${sectionConfig.type}"`
                 }
               };
               
@@ -214,7 +214,9 @@ function registerShopifyTags(engine) {
 
   engine.registerTag('form', {
     parse: function(tagToken, remainTokens) {
-      this.formType = tagToken.args.split(',')[0].trim().replace(/['"]/g, '');
+      const args = tagToken.args.split(',').map(a => a.trim().replace(/['"]/g, ''));
+      this.formType = args[0];
+      this.objectName = args[1] || null;
       this.tokens = [];
       const stream = this.liquid.parser.parseStream(remainTokens);
       stream
@@ -226,14 +228,72 @@ function registerShopifyTags(engine) {
       stream.start();
     },
     * render(ctx, emitter) {
-      emitter.write(`<form class="shopify-${this.formType}-form" method="post">`);
-      yield this.liquid.renderer.renderTemplates(this.tokens, ctx, emitter);
+      // Map form types to their action URLs
+      const actionUrls = {
+        'product': '/cart/add',
+        'cart': '/cart',
+        'contact': '/contact#contact_form',
+        'customer_login': '/account/login',
+        'customer_register': '/account/register',
+        'customer': '/account',
+        'customer_address': '/account/addresses',
+        'activate_customer_password': '/account/activate',
+        'reset_customer_password': '/account/reset',
+        'recover_customer_password': '/account/recover',
+        'create_customer': '/account',
+        'new_comment': '/comments',
+        'localization': '#',
+        'currency': '#',
+        'storefront_password': '/password'
+      };
+      
+      const action = actionUrls[this.formType] || '#';
+      const className = `shopify-${this.formType.replace(/_/g, '-')}-form`;
+      
+      // Get the optional object argument if provided
+      let formObjectData = null;
+      if (this.objectName) {
+        formObjectData = yield this.liquid.evalValue(this.objectName, ctx);
+      }
+      
+      // Create form object that Shopify themes expect
+      const formObject = {
+        errors: [],
+        posted_successfully: false,
+        object: formObjectData
+      };
+      
+      // Add form-specific properties
+      if (this.formType === 'customer_login' || this.formType === 'customer_register') {
+        formObject.password_needed = this.formType === 'customer_login';
+      }
+      
+      // Set the form object in context
+      const tempContext = ctx.getAll();
+      tempContext.form = formObject;
+      const newCtx = new ctx.constructor(tempContext, ctx.opts, ctx.sync);
+      
+      // Write form opening with proper attributes and hidden inputs
+      emitter.write(`<form method="post" action="${action}" class="${className}" accept-charset="UTF-8" enctype="multipart/form-data">`);
+      emitter.write(`<input type="hidden" name="form_type" value="${this.formType}" />`);
+      emitter.write(`<input type="hidden" name="utf8" value="✓" />`);
+      
+      // Add product-specific hidden inputs
+      if (this.formType === 'product' && formObjectData && formObjectData.id) {
+        emitter.write(`<input type="hidden" name="product-id" value="${formObjectData.id}" />`);
+      }
+      
+      yield this.liquid.renderer.renderTemplates(this.tokens, newCtx, emitter);
       emitter.write('</form>');
     }
   });
 
   engine.registerTag('paginate', {
     parse: function(tagToken, remainTokens) {
+      // Parse: {% paginate collection.products by 12 %}
+      const args = tagToken.args.trim().split(/\s+by\s+/i);
+      this.collectionPath = args[0];
+      this.pageSizeExpression = args[1] || '12';
       this.tokens = [];
       const stream = this.liquid.parser.parseStream(remainTokens);
       stream
@@ -245,16 +305,112 @@ function registerShopifyTags(engine) {
       stream.start();
     },
     * render(ctx, emitter) {
-      const paginate = {
-        current_page: 1,
-        pages: 1,
-        items: 12,
-        page_size: 12,
-        previous: null,
-        next: null
+      // Get the collection/array to paginate
+      const collectionData = yield this.liquid.evalValue(this.collectionPath, ctx);
+      const items = Array.isArray(collectionData) ? collectionData : [];
+      
+      // Evaluate page size (supports both literals and Liquid expressions like section.settings.products_per_page)
+      const pageSizeValue = yield this.liquid.evalValue(this.pageSizeExpression, ctx);
+      const pageSize = Math.max(1, parseInt(pageSizeValue) || 12);
+      
+      // Get current page from request.query.page
+      const contextData = ctx.getAll();
+      const requestQuery = contextData.request?.query || {};
+      const currentPage = Math.max(1, parseInt(requestQuery.page) || 1);
+      const totalItems = items.length;
+      const totalPages = Math.ceil(totalItems / pageSize) || 1;
+      
+      // Slice the items for current page
+      const startIndex = (currentPage - 1) * pageSize;
+      const endIndex = startIndex + pageSize;
+      const pagedItems = items.slice(startIndex, endIndex);
+      
+      // Helper function to build URLs preserving existing query parameters
+      const buildPaginationUrl = (pageNum) => {
+        const params = new URLSearchParams(requestQuery);
+        params.set('page', pageNum.toString());
+        const currentPath = contextData.request?.path || '/';
+        return `${currentPath}?${params.toString()}`;
       };
-      ctx.environments.paginate = paginate;
-      yield this.liquid.renderer.renderTemplates(this.tokens, ctx, emitter);
+      
+      // Build paginate object exactly like Shopify
+      const paginate = {
+        current_page: currentPage,
+        current_offset: startIndex,
+        page_size: pageSize,
+        pages: totalPages,
+        items: totalItems,
+        previous: null,
+        next: null,
+        parts: []
+      };
+      
+      // Add previous link if not on first page
+      if (currentPage > 1) {
+        paginate.previous = {
+          title: 'Previous',
+          url: buildPaginationUrl(currentPage - 1),
+          is_link: true
+        };
+      }
+      
+      // Add next link if not on last page
+      if (currentPage < totalPages) {
+        paginate.next = {
+          title: 'Next',
+          url: buildPaginationUrl(currentPage + 1),
+          is_link: true
+        };
+      }
+      
+      // Build parts array for pagination UI
+      for (let i = 1; i <= totalPages; i++) {
+        if (i === currentPage) {
+          paginate.parts.push({
+            title: i.toString(),
+            url: buildPaginationUrl(i),
+            is_link: false
+          });
+        } else {
+          paginate.parts.push({
+            title: i.toString(),
+            url: buildPaginationUrl(i),
+            is_link: true
+          });
+        }
+      }
+      
+      // Update context with paginated items and paginate object
+      const tempContext = ctx.getAll();
+      
+      // Replace the original paginated array with paged items (works for any path)
+      const pathParts = this.collectionPath.split('.');
+      if (pathParts.length === 2 && tempContext[pathParts[0]]) {
+        // Handle paths like: collection.products, blog.articles, search.results, etc.
+        tempContext[pathParts[0]] = {
+          ...tempContext[pathParts[0]],
+          [pathParts[1]]: pagedItems
+        };
+      } else if (pathParts.length === 1) {
+        // Handle direct arrays
+        tempContext[pathParts[0]] = pagedItems;
+      } else if (pathParts.length > 2) {
+        // Handle nested paths (e.g., some.nested.array)
+        let current = tempContext;
+        for (let i = 0; i < pathParts.length - 1; i++) {
+          if (current[pathParts[i]]) {
+            current = current[pathParts[i]];
+          }
+        }
+        if (current) {
+          current[pathParts[pathParts.length - 1]] = pagedItems;
+        }
+      }
+      
+      tempContext.paginate = paginate;
+      const newCtx = new ctx.constructor(tempContext, ctx.opts, ctx.sync);
+      
+      yield this.liquid.renderer.renderTemplates(this.tokens, newCtx, emitter);
     }
   });
 
@@ -279,13 +435,38 @@ function registerShopifyTags(engine) {
     return '';
   });
   engine.registerFilter('img_url', (input, size) => {
+    let url = null;
     if (typeof input === 'string') {
+      url = input;
+    } else if (input && input.src) {
+      url = input.src;
+    } else {
       return input;
     }
-    if (input && input.src) {
-      return input.src;
+    
+    // If it's a local stock image or already has transformations, return as-is
+    if (url.startsWith('/attached_assets/') || url.includes('?')) {
+      return url;
     }
-    return input;
+    
+    // For external URLs (Unsplash, etc.), add size transformations
+    if (size && (url.startsWith('http://') || url.startsWith('https://'))) {
+      const sizeMap = {
+        'small': 'w=100',
+        'compact': 'w=160',
+        'medium': 'w=240',
+        'large': 'w=480',
+        'grande': 'w=600',
+        '1024x1024': 'w=1024&h=1024',
+        '2048x2048': 'w=2048&h=2048'
+      };
+      
+      const sizeParam = sizeMap[size] || size;
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}${sizeParam}&fit=crop`;
+    }
+    
+    return url;
   });
   engine.registerFilter('image_url', (input, options) => {
     const placeholders = [
@@ -317,6 +498,8 @@ function registerShopifyTags(engine) {
     } else if (input && input.src) {
       if (typeof input.src === 'string' && (input.src.startsWith('http://') || input.src.startsWith('https://'))) {
         url = input.src;
+      } else if (typeof input.src === 'string') {
+        url = input.src;
       } else {
         url = placeholder;
       }
@@ -324,14 +507,27 @@ function registerShopifyTags(engine) {
       url = placeholder;
     }
     
+    // Apply Shopify transformation parameters
     if (url && options && typeof options === 'object') {
       const width = options.width;
       const height = options.height;
-      if (url.includes('unsplash.com') && (width || height)) {
+      const crop = options.crop || 'center';
+      const scale = options.scale || 2;
+      const format = options.format;
+      
+      // For local stock images, transformations are already applied
+      if (url.startsWith('/attached_assets/')) {
+        return url;
+      }
+      
+      // For Unsplash/external images, apply transformations
+      if (url.includes('unsplash.com') || url.startsWith('http')) {
         const params = new URLSearchParams();
         if (width) params.append('w', width);
         if (height) params.append('h', height);
         params.append('fit', 'crop');
+        if (crop !== 'center') params.append('crop', crop);
+        if (format) params.append('fm', format);
         url = url.split('?')[0] + '?' + params.toString();
       }
     }
@@ -432,7 +628,27 @@ function registerShopifyTags(engine) {
     return encodeURIComponent(input);
   });
   engine.registerFilter('font_face', (input, options) => {
-    return '';
+    if (!input || !input.family) return '';
+    
+    // Check if it's a system font
+    if (input.system || input['system?']) {
+      return ''; // System fonts don't need @font-face declarations
+    }
+    
+    // For web fonts, generate proper @font-face CSS
+    const family = input.family || 'sans-serif';
+    const weight = input.weight || 400;
+    const style = input.style || 'normal';
+    
+    // In a real implementation, this would load actual font files from Shopify's CDN
+    // For preview purposes, we'll use system fonts as fallback
+    return `@font-face {
+  font-family: "${family}";
+  font-weight: ${weight};
+  font-style: ${style};
+  font-display: swap;
+  src: local("${family}");
+}`;
   });
   engine.registerFilter('font_modify', (input, property, value) => {
     return input || `font-family: sans-serif`;
@@ -517,12 +733,266 @@ function registerShopifyTags(engine) {
     }
     return '';
   });
+  
+  // Additional Shopify filters for complete compatibility
+  engine.registerFilter('handleize', (input) => {
+    if (typeof input === 'string') {
+      return input.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    }
+    return input;
+  });
+  
+  engine.registerFilter('within', (collection) => {
+    return collection || {};
+  });
+  
+  engine.registerFilter('link_to', (label, url) => {
+    return `<a href="${url}">${label}</a>`;
+  });
+  
+  engine.registerFilter('money_without_trailing_zeros', (cents) => {
+    if (typeof cents === 'number') {
+      const dollars = (cents / 100).toFixed(2);
+      return `$${dollars.replace(/\.00$/, '')}`;
+    }
+    return cents;
+  });
+  
+  engine.registerFilter('money_without_currency', (cents) => {
+    if (typeof cents === 'number') {
+      return `${(cents / 100).toFixed(2)}`;
+    }
+    return cents;
+  });
+  
+  engine.registerFilter('pluralize', (input, singular, plural) => {
+    return input === 1 ? singular : plural;
+  });
+  
+  engine.registerFilter('article_url', (input) => {
+    if (typeof input === 'object' && input.handle) {
+      return `/articles/${input.handle}`;
+    }
+    return input;
+  });
+  
+  engine.registerFilter('collection_url', (input) => {
+    if (typeof input === 'object' && input.handle) {
+      return `/collections/${input.handle}`;
+    }
+    return input;
+  });
+  
+  engine.registerFilter('product_url', (input) => {
+    if (typeof input === 'object' && input.handle) {
+      return `/products/${input.handle}`;
+    }
+    return input;
+  });
+  
+  engine.registerFilter('within_collection', (product, collection) => {
+    if (product && product.url && collection && collection.handle) {
+      return `/collections/${collection.handle}${product.url}`;
+    }
+    return product?.url || '';
+  });
+  
+  engine.registerFilter('highlight', (input, searchTerm) => {
+    if (typeof input === 'string' && searchTerm) {
+      const regex = new RegExp(`(${searchTerm})`, 'gi');
+      return input.replace(regex, '<mark>$1</mark>');
+    }
+    return input;
+  });
+  
+  engine.registerFilter('highlight_active_tag', (tag) => {
+    return tag;
+  });
+  
+  engine.registerFilter('date', (input, format = '%B %d, %Y') => {
+    const date = new Date(input);
+    if (isNaN(date)) return input;
+    
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const monthsShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const daysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    
+    return format
+      .replace('%B', months[date.getMonth()])
+      .replace('%b', monthsShort[date.getMonth()])
+      .replace('%A', days[date.getDay()])
+      .replace('%a', daysShort[date.getDay()])
+      .replace('%d', String(date.getDate()).padStart(2, '0'))
+      .replace('%e', String(date.getDate()))
+      .replace('%m', String(date.getMonth() + 1).padStart(2, '0'))
+      .replace('%Y', String(date.getFullYear()))
+      .replace('%y', String(date.getFullYear()).slice(-2));
+  });
+  
+  engine.registerFilter('newline_to_br', (input) => {
+    if (typeof input === 'string') {
+      return input.replace(/\n/g, '<br>');
+    }
+    return input;
+  });
+  
+  engine.registerFilter('strip_newlines', (input) => {
+    if (typeof input === 'string') {
+      return input.replace(/\n/g, '');
+    }
+    return input;
+  });
+  
+  engine.registerFilter('downcase', (input) => {
+    if (typeof input === 'string') {
+      return input.toLowerCase();
+    }
+    return input;
+  });
+  
+  engine.registerFilter('upcase', (input) => {
+    if (typeof input === 'string') {
+      return input.toUpperCase();
+    }
+    return input;
+  });
+  
+  engine.registerFilter('capitalize', (input) => {
+    if (typeof input === 'string') {
+      return input.charAt(0).toUpperCase() + input.slice(1);
+    }
+    return input;
+  });
+  
+  engine.registerFilter('remove', (input, substring) => {
+    if (typeof input === 'string') {
+      return input.split(substring).join('');
+    }
+    return input;
+  });
+  
+  engine.registerFilter('remove_first', (input, substring) => {
+    if (typeof input === 'string') {
+      return input.replace(substring, '');
+    }
+    return input;
+  });
+  
+  engine.registerFilter('slice', (input, start, length) => {
+    if (typeof input === 'string' || Array.isArray(input)) {
+      if (length !== undefined) {
+        return input.slice(start, start + length);
+      }
+      return input.slice(start);
+    }
+    return input;
+  });
+  
+  engine.registerFilter('sort', (array, property) => {
+    if (!Array.isArray(array)) return array;
+    const sorted = [...array];
+    if (property) {
+      sorted.sort((a, b) => {
+        const aVal = a[property];
+        const bVal = b[property];
+        if (aVal < bVal) return -1;
+        if (aVal > bVal) return 1;
+        return 0;
+      });
+    } else {
+      sorted.sort();
+    }
+    return sorted;
+  });
+  
+  engine.registerFilter('reverse', (array) => {
+    if (Array.isArray(array)) {
+      return [...array].reverse();
+    }
+    return array;
+  });
+  
+  engine.registerFilter('uniq', (array) => {
+    if (Array.isArray(array)) {
+      return [...new Set(array)];
+    }
+    return array;
+  });
+  
+  engine.registerFilter('compact', (array) => {
+    if (Array.isArray(array)) {
+      return array.filter(item => item != null);
+    }
+    return array;
+  });
+  
+  engine.registerFilter('map', (array, property) => {
+    if (Array.isArray(array)) {
+      return array.map(item => item[property]);
+    }
+    return array;
+  });
+  
+  engine.registerFilter('where', (array, property, value) => {
+    if (Array.isArray(array)) {
+      return array.filter(item => item[property] === value);
+    }
+    return array;
+  });
+  
+  engine.registerFilter('round', (input, decimals = 0) => {
+    const num = parseFloat(input);
+    if (isNaN(num)) return input;
+    return Number(num.toFixed(decimals));
+  });
+  
+  engine.registerFilter('ceil', (input) => {
+    return Math.ceil(parseFloat(input));
+  });
+  
+  engine.registerFilter('floor', (input) => {
+    return Math.floor(parseFloat(input));
+  });
+  
+  engine.registerFilter('abs', (input) => {
+    return Math.abs(parseFloat(input));
+  });
+  
+  engine.registerFilter('times', (input, multiplier) => {
+    return parseFloat(input) * parseFloat(multiplier);
+  });
+  
+  engine.registerFilter('divided_by', (input, divisor) => {
+    return parseFloat(input) / parseFloat(divisor);
+  });
+  
+  engine.registerFilter('minus', (input, subtrahend) => {
+    return parseFloat(input) - parseFloat(subtrahend);
+  });
+  
+  engine.registerFilter('plus', (input, addend) => {
+    return parseFloat(input) + parseFloat(addend);
+  });
+  
+  engine.registerFilter('modulo', (input, divisor) => {
+    return parseFloat(input) % parseFloat(divisor);
+  });
+  
+  engine.registerFilter('at_least', (input, min) => {
+    return Math.max(parseFloat(input), parseFloat(min));
+  });
+  
+  engine.registerFilter('at_most', (input, max) => {
+    return Math.min(parseFloat(input), parseFloat(max));
+  });
 
   return engine;
 }
 
 // Serve static theme assets
 app.use('/theme-assets', express.static(path.join(THEME_DIR, 'assets')));
+app.use('/attached_assets', express.static(path.join(__dirname, 'attached_assets')));
 
 // Load theme settings from settings_data.json
 function loadThemeSettings() {
@@ -635,11 +1105,53 @@ async function renderPage(template, data = {}) {
       color_schemes: createColorSchemes()
     };
     
+    // Generate content_for_header with Shopify-like scripts and meta tags
+    const content_for_header = `<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="">
+<link rel="canonical" href="${mockData.shop.url + (data.request?.path || '/')}">
+<link rel="preconnect" href="https://cdn.shopify.com" crossorigin>
+<script>window.Shopify = window.Shopify || {};
+Shopify.shop = "${mockData.shop.domain}";
+Shopify.locale = "en";
+Shopify.currency = {"active":"USD","rate":"1.0"};
+Shopify.theme = {"name":"Dawn","id":0,"theme_store_id":null,"role":"main"};
+Shopify.theme.handle = "null";
+Shopify.theme.style = {"id":null,"handle":null};
+Shopify.cdnHost = "cdn.shopify.com";
+Shopify.routes = Shopify.routes || {};
+Shopify.routes.root = "/";</script>
+<script>window.performance && window.performance.mark && window.performance.mark('shopify.content_for_header.start');</script>
+<script>
+(function(){
+  if ("sendBeacon" in navigator && "performance" in window) {
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        if (!window.Shopify || !window.Shopify.analytics) return;
+        var analytics = window.Shopify.analytics;
+        analytics.replayQueue = [];
+        analytics.publish = function (eventName, eventType, payload) {
+          analytics.replayQueue.push([eventName, eventType, payload]);
+        };
+      }, 0);
+    });
+  }
+})();
+</script>
+<script>window.ShopifyAnalytics = window.ShopifyAnalytics || {};
+window.ShopifyAnalytics.meta = window.ShopifyAnalytics.meta || {};
+window.ShopifyAnalytics.meta.currency = 'USD';
+var meta = {"page":{"pageType":"${data.request?.page_type || 'index'}","resourceType":"${data.request?.page_type || 'index'}"}};
+for (var attr in meta) {
+  window.ShopifyAnalytics.meta[attr] = meta[attr];
+}</script>`;
+    
     const fullData = {
       ...mockData,
       settings: mergedSettings,
       ...data,
-      content_for_header: '',
+      content_for_header: content_for_header,
       canonical_url: mockData.shop.url + (data.request?.path || '/')
     };
 
@@ -687,7 +1199,7 @@ async function renderPage(template, data = {}) {
                         id: blockId,
                         type: blockConfig.type,
                         settings: processedBlockSettings,
-                        shopify_attributes: ''
+                        shopify_attributes: ` data-block-id="${blockId}" data-block-type="${blockConfig.type}"`
                       });
                     }
                   }
@@ -717,7 +1229,7 @@ async function renderPage(template, data = {}) {
                     id: sectionKey,
                     settings: sectionSettings,
                     blocks: blocks,
-                    shopify_attributes: ''
+                    shopify_attributes: ` data-section-id="${sectionKey}" data-section-type="${sectionConfig.type}"`
                   }
                 };
                 
@@ -1616,7 +2128,7 @@ app.get('/preview/collections/:handle', async (req, res) => {
 
     const html = await renderPage('collection.json', {
       collection,
-      request: { ...mockData.request, page_type: 'collection', path: req.path }
+      request: { ...mockData.request, page_type: 'collection', path: req.path, query: req.query }
     });
     res.send(html);
   } catch (error) {
