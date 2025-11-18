@@ -960,7 +960,7 @@ app.post('/admin/upload', (req, res) => {
   }
 });
 
-// File manager
+// File manager with live preview
 app.get('/admin/files', (req, res) => {
   const filePath = req.query.file || '';
   const fullPath = path.join(THEME_DIR, filePath);
@@ -1000,7 +1000,9 @@ app.get('/admin/files', (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Manager - Shopify Theme Tool</title>
+    <title>Live Editor - Shopify Theme Tool</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/dracula.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -1008,29 +1010,37 @@ app.get('/admin/files', (req, res) => {
             display: flex;
             height: 100vh;
             background: #f5f5f5;
+            overflow: hidden;
         }
         .sidebar {
-            width: 300px;
+            width: 250px;
             background: #2c3e50;
             color: white;
             overflow-y: auto;
-            padding: 20px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
         }
         .sidebar h2 {
-            margin-bottom: 20px;
-            font-size: 18px;
+            margin-bottom: 15px;
+            font-size: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #34495e;
         }
         .file-tree {
             list-style: none;
+            flex: 1;
+            overflow-y: auto;
         }
         .file-tree li {
-            padding: 8px 10px;
+            padding: 6px 8px;
             cursor: pointer;
-            border-radius: 5px;
-            margin: 2px 0;
+            border-radius: 4px;
+            margin: 1px 0;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
+            font-size: 13px;
         }
         .file-tree li:hover {
             background: #34495e;
@@ -1039,51 +1049,115 @@ app.get('/admin/files', (req, res) => {
             background: #667eea;
         }
         .folder { font-weight: bold; }
-        .main {
+        .main-content {
             flex: 1;
             display: flex;
             flex-direction: column;
-            background: white;
         }
         .toolbar {
             background: #667eea;
             color: white;
-            padding: 15px 20px;
+            padding: 12px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         .toolbar h1 {
-            font-size: 18px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .toolbar-buttons {
+            display: flex;
+            gap: 10px;
         }
         .btn {
             background: white;
             color: #667eea;
-            padding: 8px 16px;
+            padding: 6px 14px;
             border: none;
-            border-radius: 5px;
+            border-radius: 4px;
             cursor: pointer;
             font-weight: 600;
             text-decoration: none;
             display: inline-block;
+            font-size: 13px;
+            transition: all 0.2s;
         }
         .btn:hover {
             background: #f0f0f0;
+            transform: translateY(-1px);
         }
-        .editor-container {
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #059669;
+        }
+        .split-view {
             flex: 1;
-            padding: 20px;
-            overflow: auto;
+            display: flex;
+            overflow: hidden;
+        }
+        .editor-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #1e1e1e;
+            border-right: 1px solid #ddd;
+        }
+        .preview-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+        }
+        .panel-header {
+            background: #f8f9fa;
+            padding: 10px 15px;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .panel-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #495057;
+        }
+        .preview-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .preview-controls select {
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
         }
         #editor {
-            width: 100%;
-            min-height: 500px;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 14px;
+            flex: 1;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+            font-size: 13px;
             padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            background: #f9f9f9;
+            border: none;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            resize: none;
+            outline: none;
+            line-height: 1.6;
+        }
+        .CodeMirror {
+            height: 100%;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        #preview-frame {
+            flex: 1;
+            border: none;
+            background: white;
         }
         .no-file {
             text-align: center;
@@ -1097,13 +1171,22 @@ app.get('/admin/files', (req, res) => {
         .status {
             background: #d4edda;
             color: #155724;
-            padding: 10px 20px;
+            padding: 8px 20px;
             display: none;
+            font-size: 13px;
+            border-bottom: 1px solid #c3e6cb;
         }
-        .buttons {
-            margin-top: 20px;
-            display: flex;
-            gap: 10px;
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border-bottom: 1px solid #f5c6cb;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #999;
         }
     </style>
 </head>
@@ -1121,31 +1204,86 @@ app.get('/admin/files', (req, res) => {
             `).join('')}
         </ul>
     </div>
-    <div class="main">
+    <div class="main-content">
         <div class="toolbar">
-            <h1>${isFile ? filePath : 'File Manager'}</h1>
-            <div>
-                <a href="/admin" class="btn">← Back to Dashboard</a>
+            <h1>${isFile ? '✏️ ' + filePath : '📝 Live Editor'}</h1>
+            <div class="toolbar-buttons">
+                ${isFile ? '<button class="btn btn-success" onclick="saveFile()">💾 Save & Refresh</button>' : ''}
+                <a href="/admin" class="btn">← Dashboard</a>
             </div>
         </div>
         <div class="status" id="status"></div>
-        <div class="editor-container">
-            ${isFile ? `
+        ${isFile ? `
+        <div class="split-view">
+            <div class="editor-panel">
+                <div class="panel-header">
+                    <h3>📝 Editor</h3>
+                    <div style="font-size: 11px; color: #6c757d;">Press Ctrl+S to save</div>
+                </div>
                 <textarea id="editor">${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
-                <div class="buttons">
-                    <button class="btn" onclick="saveFile()">💾 Save File</button>
-                    <a href="/admin/files" class="btn">✕ Close</a>
+            </div>
+            <div class="preview-panel">
+                <div class="panel-header">
+                    <h3>👁️ Live Preview</h3>
+                    <div class="preview-controls">
+                        <select id="page-selector" onchange="changePage()">
+                            <option value="/preview">Homepage</option>
+                            <option value="/preview/products/wireless-bluetooth-speaker">Product: Speaker</option>
+                            <option value="/preview/products/organic-cotton-tshirt">Product: T-Shirt</option>
+                            <option value="/preview/products/stainless-steel-water-bottle">Product: Water Bottle</option>
+                            <option value="/preview/collections/all">Collection: All</option>
+                            <option value="/preview/cart">Cart Page</option>
+                        </select>
+                        <button class="btn" onclick="refreshPreview()" style="padding: 4px 10px; font-size: 12px;">🔄 Refresh</button>
+                    </div>
                 </div>
-            ` : `
-                <div class="no-file">
-                    <h2>Welcome to File Manager</h2>
-                    <p>Select a file from the sidebar to edit it</p>
-                </div>
-            `}
+                <iframe id="preview-frame" src="/preview"></iframe>
+            </div>
         </div>
+        ` : `
+        <div style="flex: 1; display: flex; align-items: center; justify-content: center;">
+            <div class="no-file">
+                <h2>Welcome to Live Editor</h2>
+                <p>Select a file from the sidebar to edit it with live preview</p>
+                <p style="margin-top: 20px; color: #999; font-size: 14px;">Changes will be visible in real-time in the preview panel</p>
+            </div>
+        </div>
+        `}
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/htmlmixed/htmlmixed.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/xml/xml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/css/css.min.js"></script>
     <script>
+        let editor;
+        
+        // Initialize CodeMirror if we have a file open
+        ${isFile ? `
+        const textarea = document.getElementById('editor');
+        editor = CodeMirror.fromTextArea(textarea, {
+            mode: 'htmlmixed',
+            theme: 'dracula',
+            lineNumbers: true,
+            lineWrapping: true,
+            indentUnit: 2,
+            tabSize: 2,
+            indentWithTabs: false,
+            autofocus: true,
+            matchBrackets: true,
+            autoCloseBrackets: true,
+            extraKeys: {
+                'Ctrl-S': function(cm) {
+                    saveFile();
+                },
+                'Cmd-S': function(cm) {
+                    saveFile();
+                }
+            }
+        });
+        ` : ''}
+        
         // File tree click handler
         document.querySelectorAll('.file-tree li').forEach(item => {
             item.addEventListener('click', () => {
@@ -1159,7 +1297,7 @@ app.get('/admin/files', (req, res) => {
 
         function saveFile() {
             const filePath = '${filePath}';
-            const content = document.getElementById('editor').value;
+            const content = editor ? editor.getValue() : document.getElementById('editor').value;
             
             fetch('/admin/save-file', {
                 method: 'POST',
@@ -1169,14 +1307,51 @@ app.get('/admin/files', (req, res) => {
             .then(res => res.json())
             .then(data => {
                 const status = document.getElementById('status');
-                status.textContent = data.success ? '✓ File saved successfully!' : 'Error: ' + data.error;
-                status.className = 'status ' + (data.success ? '' : 'error');
-                status.style.display = 'block';
-                setTimeout(() => status.style.display = 'none', 3000);
+                if (data.success) {
+                    status.textContent = '✓ File saved successfully! Preview refreshing...';
+                    status.className = 'status';
+                    status.style.display = 'block';
+                    
+                    // Refresh the preview iframe
+                    setTimeout(() => {
+                        refreshPreview();
+                        status.textContent = '✓ File saved and preview refreshed!';
+                        setTimeout(() => status.style.display = 'none', 2000);
+                    }, 300);
+                } else {
+                    status.textContent = '✗ Error: ' + data.error;
+                    status.className = 'status error';
+                    status.style.display = 'block';
+                    setTimeout(() => status.style.display = 'none', 4000);
+                }
             })
             .catch(err => {
-                alert('Save failed: ' + err.message);
+                const status = document.getElementById('status');
+                status.textContent = '✗ Save failed: ' + err.message;
+                status.className = 'status error';
+                status.style.display = 'block';
+                setTimeout(() => status.style.display = 'none', 4000);
             });
+        }
+
+        function refreshPreview() {
+            const iframe = document.getElementById('preview-frame');
+            if (iframe) {
+                // Force reload by setting src again
+                const currentSrc = iframe.src;
+                iframe.src = 'about:blank';
+                setTimeout(() => {
+                    iframe.src = currentSrc;
+                }, 50);
+            }
+        }
+
+        function changePage() {
+            const selector = document.getElementById('page-selector');
+            const iframe = document.getElementById('preview-frame');
+            if (iframe && selector) {
+                iframe.src = selector.value;
+            }
         }
     </script>
 </body>

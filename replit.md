@@ -61,6 +61,15 @@ A Node.js/Express application that allows developers to preview and edit Shopify
 - **Cache Control**: Disabled for development
 
 ## Recent Changes
+- November 18, 2025: **Major Enhancement - Live Preview Editor**
+  - **Split-screen editor** with live preview iframe
+  - **CodeMirror integration** with syntax highlighting for Liquid/HTML
+  - **Auto-refresh** preview when files are saved
+  - **Page navigation** dropdown to switch between pages in preview
+  - **Keyboard shortcuts** (Ctrl+S/Cmd+S to save)
+  - **Professional dark theme** editor (Dracula theme)
+  - Improved UX with status notifications and visual feedback
+
 - November 5, 2025: Initial setup and critical bug fixes
   - Configured workflow to run server on port 5000
   - Updated .gitignore for Node.js best practices
