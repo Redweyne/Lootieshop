@@ -85,12 +85,12 @@ const mockData = {
       price_varies: false,
       compare_at_price: 9999,
       featured_image: {
-        src: "https://via.placeholder.com/800x800/667eea/ffffff?text=Speaker",
+        src: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=800&h=800&fit=crop",
         alt: "Wireless Bluetooth Speaker"
       },
       images: [
-        { src: "https://via.placeholder.com/800x800/667eea/ffffff?text=Speaker", alt: "Speaker front" },
-        { src: "https://via.placeholder.com/800x800/764ba2/ffffff?text=Speaker", alt: "Speaker side" }
+        { src: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=800&h=800&fit=crop", alt: "Speaker front" },
+        { src: "https://images.unsplash.com/photo-1545454675-3531b543be5d?w=800&h=800&fit=crop", alt: "Speaker side" }
       ],
       tags: ["electronics", "audio", "portable"],
       variants: [
@@ -120,11 +120,11 @@ const mockData = {
       price_max: 2499,
       price_varies: false,
       featured_image: {
-        src: "https://via.placeholder.com/800x800/48bb78/ffffff?text=T-Shirt",
+        src: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&h=800&fit=crop",
         alt: "Organic Cotton T-Shirt"
       },
       images: [
-        { src: "https://via.placeholder.com/800x800/48bb78/ffffff?text=T-Shirt", alt: "T-Shirt front" }
+        { src: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800&h=800&fit=crop", alt: "T-Shirt front" }
       ],
       tags: ["apparel", "organic", "cotton"],
       variants: [
@@ -163,11 +163,11 @@ const mockData = {
       price_max: 4999,
       price_varies: false,
       featured_image: {
-        src: "https://via.placeholder.com/800x800/8b5a3c/ffffff?text=Wallet",
+        src: "https://images.unsplash.com/photo-1627123424574-724758594e93?w=800&h=800&fit=crop",
         alt: "Leather Wallet"
       },
       images: [
-        { src: "https://via.placeholder.com/800x800/8b5a3c/ffffff?text=Wallet", alt: "Wallet closed" }
+        { src: "https://images.unsplash.com/photo-1627123424574-724758594e93?w=800&h=800&fit=crop", alt: "Wallet closed" }
       ],
       tags: ["accessories", "leather", "handmade"],
       variants: [
@@ -197,11 +197,11 @@ const mockData = {
       price_varies: false,
       compare_at_price: 4999,
       featured_image: {
-        src: "https://via.placeholder.com/800x800/3498db/ffffff?text=Bottle",
+        src: "https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=800&h=800&fit=crop",
         alt: "Water Bottle"
       },
       images: [
-        { src: "https://via.placeholder.com/800x800/3498db/ffffff?text=Bottle", alt: "Water bottle" }
+        { src: "https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=800&h=800&fit=crop", alt: "Water bottle" }
       ],
       tags: ["drinkware", "eco-friendly", "insulated"],
       variants: [
