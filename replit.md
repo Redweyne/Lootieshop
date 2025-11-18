@@ -70,6 +70,14 @@ A Node.js/Express application that allows developers to preview and edit Shopify
   - **Professional dark theme** editor (Dracula theme)
   - Improved UX with status notifications and visual feedback
 
+- November 18, 2025: **Critical Rendering Fixes**
+  - **Fixed section rendering** by creating proper LiquidJS Context objects instead of passing plain data
+  - **Beautiful gradient placeholders** - Replaced gray SVG with 5 gradient colors (purple, blue, peach, mint green, coral pink)
+  - **Enhanced error logging** with stack traces and section config for better debugging
+  - Header, footer, announcement bars now render correctly
+  - All templates verified working: homepage, product pages, collection pages, cart
+  - Zero console errors - fully functional theme preview
+
 - November 5, 2025: Initial setup and critical bug fixes
   - Configured workflow to run server on port 5000
   - Updated .gitignore for Node.js best practices

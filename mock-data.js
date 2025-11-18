@@ -39,7 +39,16 @@ const mockData = {
     body_scale: 100,
     page_width: 1200,
     favicon: null,
-    predictive_search_enabled: true
+    predictive_search_enabled: true,
+    social_facebook_link: "",
+    social_instagram_link: "",
+    social_youtube_link: "",
+    social_tiktok_link: "",
+    social_twitter_link: "",
+    social_pinterest_link: "",
+    social_snapchat_link: "",
+    social_tumblr_link: "",
+    social_vimeo_link: ""
   },
 
   request: {
@@ -231,7 +240,20 @@ const mockData = {
 
   customer: null, // Not logged in
 
-  page_title: "Demo Store"
+  page_title: "Demo Store",
+
+  localization: {
+    available_countries: [
+      { name: "United States", iso_code: "US" }
+    ],
+    available_languages: [
+      { name: "English", iso_code: "en" }
+    ],
+    country: { name: "United States", iso_code: "US" },
+    language: { name: "English", iso_code: "en" }
+  },
+
+  request_design_mode: false
 };
 
 // Add all products to 'all' collection

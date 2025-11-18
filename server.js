@@ -76,7 +76,9 @@ function getLiquidEngine() {
     extname: '.liquid',
     cache: false,
     strictFilters: false,
-    strictVariables: false
+    strictVariables: false,
+    lenientIf: true,
+    ownPropertyOnly: false
   });
 }
 
@@ -168,10 +170,17 @@ function registerShopifyTags(engine) {
                     blocks.push({
                       id: blockId,
                       type: blockConfig.type,
-                      settings: blockConfig.settings || {}
+                      settings: blockConfig.settings || {},
+                      shopify_attributes: ''
                     });
                   }
                 }
+              }
+              
+              // Add .first and .last properties to blocks array for Liquid compatibility
+              if (blocks.length > 0) {
+                blocks.first = blocks[0];
+                blocks.last = blocks[blocks.length - 1];
               }
               
               const sectionData = {
@@ -179,15 +188,20 @@ function registerShopifyTags(engine) {
                 section: {
                   id: sectionKey,
                   settings: sectionConfig.settings || {},
-                  blocks: blocks
+                  blocks: blocks,
+                  shopify_attributes: ''
                 }
               };
               
               try {
                 const templates = yield this.liquid.parseFile(sectionFile);
-                yield this.liquid.renderer.renderTemplates(templates, sectionData, emitter);
+                // Create a new context with the section data
+                const newCtx = new ctx.constructor(sectionData, ctx.opts, ctx.sync);
+                yield this.liquid.renderer.renderTemplates(templates, newCtx, emitter);
               } catch (err) {
                 console.error(`Error rendering section ${sectionFile}:`, err.message);
+                console.error(`Error stack:`, err.stack);
+                console.error(`Section config:`, JSON.stringify(sectionConfig, null, 2));
               }
             }
           }
@@ -274,8 +288,26 @@ function registerShopifyTags(engine) {
     return input;
   });
   engine.registerFilter('image_url', (input, options) => {
-    // Simple gray placeholder as data URI
-    const placeholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwMCIgaGVpZ2h0PSI4MDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEyMDAiIGhlaWdodD0iODAwIiBmaWxsPSIjZTBlMGUwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIFBsYWNlaG9sZGVyPC90ZXh0Pjwvc3ZnPg==';
+    // Beautiful gradient placeholders - different colors for variety
+    const placeholders = [
+      // Soft purple gradient
+      'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwMCIgaGVpZ2h0PSI4MDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJncmFkMSIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzlkNWQ5MDtzdG9wLW9wYWNpdHk6MSIgLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiNmZGQ4ZTY7c3RvcC1vcGFjaXR5OjEiIC8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9IjEyMDAiIGhlaWdodD0iODAwIiBmaWxsPSJ1cmwoI2dyYWQxKSIvPjwvc3ZnPg==',
+      // Ocean blue gradient
+      'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwMCIgaGVpZ2h0PSI4MDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJncmFkMiIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzQxNThhNTtzdG9wLW9wYWNpdHk6MSIgLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiNhZGQ4ZTY7c3RvcC1vcGFjaXR5OjEiIC8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9IjEyMDAiIGhlaWdodD0iODAwIiBmaWxsPSJ1cmwoI2dyYWQyKSIvPjwvc3ZnPg==',
+      // Warm peach gradient
+      'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwMCIgaGVpZ2h0PSI4MDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJncmFkMyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6I2ZmYTk2NjtzdG9wLW9wYWNpdHk6MSIgLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiNmZmU1Y2M7c3RvcC1vcGFjaXR5OjEiIC8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9IjEyMDAiIGhlaWdodD0iODAwIiBmaWxsPSJ1cmwoI2dyYWQzKSIvPjwvc3ZnPg==',
+      // Mint green gradient
+      'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwMCIgaGVpZ2h0PSI4MDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJncmFkNCIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzZhYmU4MztzdG9wLW9wYWNpdHk6MSIgLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiNkOWY0ZGQ7c3RvcC1vcGFjaXR5OjEiIC8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9IjEyMDAiIGhlaWdodD0iODAwIiBmaWxsPSJ1cmwoI2dyYWQ0KSIvPjwvc3ZnPg==',
+      // Coral pink gradient
+      'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwMCIgaGVpZ2h0PSI4MDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJncmFkNSIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6I2ZmNzg4NDtzdG9wLW9wYWNpdHk6MSIgLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiNmZmRhZGQ7c3RvcC1vcGFjaXR5OjEiIC8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9IjEyMDAiIGhlaWdodD0iODAwIiBmaWxsPSJ1cmwoI2dyYWQ1KSIvPjwvc3ZnPg=='
+    ];
+    
+    // Use a simple hash of the input to consistently pick the same color for the same image
+    let placeholderIndex = 0;
+    if (typeof input === 'string' && input.length > 0) {
+      placeholderIndex = input.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % placeholders.length;
+    }
+    const placeholder = placeholders[placeholderIndex];
     
     if (typeof input === 'string') {
       // Handle shopify:// URLs by converting to placeholder
@@ -595,10 +627,17 @@ async function renderPage(template, data = {}) {
                       blocks.push({
                         id: blockId,
                         type: blockConfig.type,
-                        settings: processedBlockSettings
+                        settings: processedBlockSettings,
+                        shopify_attributes: ''
                       });
                     }
                   }
+                }
+                
+                // Add .first and .last properties to blocks array for Liquid compatibility
+                if (blocks.length > 0) {
+                  blocks.first = blocks[0];
+                  blocks.last = blocks[blocks.length - 1];
                 }
                 
                 // Handle product references in section settings
@@ -618,7 +657,8 @@ async function renderPage(template, data = {}) {
                   section: {
                     id: sectionKey,
                     settings: sectionSettings,
-                    blocks: blocks
+                    blocks: blocks,
+                    shopify_attributes: ''
                   }
                 };
                 
